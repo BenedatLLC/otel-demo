@@ -1,6 +1,7 @@
 # specific to this repo
 .envrc
 /repo/
+.minikube
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
