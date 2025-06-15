@@ -1,5 +1,5 @@
 # otel-demo
-Run the open telemetry demo app in Minikube
+Run the [open telemetry demo app](https://github.com/open-telemetry/opentelemetry-demo) in Minikube
 
 ## Installation
 
@@ -42,7 +42,7 @@ Now, run `minikube start`
 ### Remote proxy
 If you are running minikube on a remote machine, keep the following running to have a remote proxy:
 ```sh
-kubectl proxy --address='0.0.0.0' --accept-hosts='^*$
+kubectl proxy --address='0.0.0.0' --accept-hosts='^*$'
 ```
 
 You will be able to access the dashboard at:
