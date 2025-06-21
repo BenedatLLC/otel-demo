@@ -1,0 +1,2734 @@
+COMPUTED VALUES:
+components:
+  accounting:
+    enabled: true
+    env:
+    - name: KAFKA_ADDR
+      value: kafka:9092
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://$(OTEL_COLLECTOR_NAME):4318
+    initContainers:
+    - command:
+      - sh
+      - -c
+      - until nc -z -v -w30 kafka 9092; do echo waiting for kafka; sleep 2; done;
+      image: busybox:latest
+      name: wait-for-kafka
+    resources:
+      limits:
+        memory: 120Mi
+    useDefault:
+      env: true
+  ad:
+    enabled: true
+    env:
+    - name: AD_PORT
+      value: "8080"
+    - name: FLAGD_HOST
+      value: flagd
+    - name: FLAGD_PORT
+      value: "8013"
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://$(OTEL_COLLECTOR_NAME):4318
+    - name: OTEL_LOGS_EXPORTER
+      value: otlp
+    resources:
+      limits:
+        memory: 300Mi
+    service:
+      port: 8080
+    useDefault:
+      env: true
+  cart:
+    enabled: true
+    env:
+    - name: CART_PORT
+      value: "8080"
+    - name: ASPNETCORE_URLS
+      value: http://*:$(CART_PORT)
+    - name: VALKEY_ADDR
+      value: valkey-cart:6379
+    - name: FLAGD_HOST
+      value: flagd
+    - name: FLAGD_PORT
+      value: "8013"
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://$(OTEL_COLLECTOR_NAME):4317
+    initContainers:
+    - command:
+      - sh
+      - -c
+      - until nc -z -v -w30 valkey-cart 6379; do echo waiting for valkey-cart; sleep
+        2; done;
+      image: busybox:latest
+      name: wait-for-valkey-cart
+    resources:
+      limits:
+        memory: 160Mi
+    service:
+      port: 8080
+    useDefault:
+      env: true
+  checkout:
+    enabled: true
+    env:
+    - name: CHECKOUT_PORT
+      value: "8080"
+    - name: CART_ADDR
+      value: cart:8080
+    - name: CURRENCY_ADDR
+      value: currency:8080
+    - name: EMAIL_ADDR
+      value: http://email:8080
+    - name: PAYMENT_ADDR
+      value: payment:8080
+    - name: PRODUCT_CATALOG_ADDR
+      value: product-catalog:8080
+    - name: SHIPPING_ADDR
+      value: shipping:8080
+    - name: KAFKA_ADDR
+      value: kafka:9092
+    - name: FLAGD_HOST
+      value: flagd
+    - name: FLAGD_PORT
+      value: "8013"
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://$(OTEL_COLLECTOR_NAME):4317
+    initContainers:
+    - command:
+      - sh
+      - -c
+      - until nc -z -v -w30 kafka 9092; do echo waiting for kafka; sleep 2; done;
+      image: busybox:latest
+      name: wait-for-kafka
+    resources:
+      limits:
+        memory: 20Mi
+    service:
+      port: 8080
+    useDefault:
+      env: true
+  currency:
+    enabled: true
+    env:
+    - name: CURRENCY_PORT
+      value: "8080"
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://$(OTEL_COLLECTOR_NAME):4317
+    - name: VERSION
+      value: '{{ .Chart.AppVersion }}'
+    resources:
+      limits:
+        memory: 20Mi
+    service:
+      port: 8080
+    useDefault:
+      env: true
+  email:
+    enabled: true
+    env:
+    - name: EMAIL_PORT
+      value: "8080"
+    - name: APP_ENV
+      value: production
+    - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+      value: http://$(OTEL_COLLECTOR_NAME):4318/v1/traces
+    resources:
+      limits:
+        memory: 100Mi
+    service:
+      port: 8080
+    useDefault:
+      env: true
+  flagd:
+    additionalVolumes:
+    - configMap:
+        name: flagd-config
+      name: config-ro
+    command:
+    - /flagd-build
+    - start
+    - --port
+    - "8013"
+    - --ofrep-port
+    - "8016"
+    - --uri
+    - file:./etc/flagd/demo.flagd.json
+    enabled: true
+    env:
+    - name: FLAGD_METRICS_EXPORTER
+      value: otel
+    - name: FLAGD_OTEL_COLLECTOR_URI
+      value: $(OTEL_COLLECTOR_NAME):4317
+    imageOverride:
+      repository: ghcr.io/open-feature/flagd
+      tag: v0.11.1
+    initContainers:
+    - command:
+      - sh
+      - -c
+      - cp /config-ro/demo.flagd.json /config-rw/demo.flagd.json && cat /config-rw/demo.flagd.json
+      image: busybox
+      name: init-config
+      volumeMounts:
+      - mountPath: /config-ro
+        name: config-ro
+      - mountPath: /config-rw
+        name: config-rw
+    mountedEmptyDirs:
+    - mountPath: /etc/flagd
+      name: config-rw
+    ports:
+    - name: rpc
+      value: 8013
+    - name: ofrep
+      value: 8016
+    replicas: 1
+    resources:
+      limits:
+        memory: 75Mi
+    sidecarContainers:
+    - env:
+      - name: FLAGD_METRICS_EXPORTER
+        value: otel
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4318
+      name: flagd-ui
+      resources:
+        limits:
+          memory: 100Mi
+      service:
+        port: 4000
+      useDefault:
+        env: true
+      volumeMounts:
+      - mountPath: /app/data
+        name: config-rw
+    useDefault:
+      env: true
+  fraud-detection:
+    enabled: true
+    env:
+    - name: KAFKA_ADDR
+      value: kafka:9092
+    - name: FLAGD_HOST
+      value: flagd
+    - name: FLAGD_PORT
+      value: "8013"
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://$(OTEL_COLLECTOR_NAME):4318
+    initContainers:
+    - command:
+      - sh
+      - -c
+      - until nc -z -v -w30 kafka 9092; do echo waiting for kafka; sleep 2; done;
+      image: busybox:latest
+      name: wait-for-kafka
+    resources:
+      limits:
+        memory: 300Mi
+    useDefault:
+      env: true
+  frontend:
+    enabled: true
+    env:
+    - name: FRONTEND_PORT
+      value: "8080"
+    - name: FRONTEND_ADDR
+      value: :8080
+    - name: AD_ADDR
+      value: ad:8080
+    - name: CART_ADDR
+      value: cart:8080
+    - name: CHECKOUT_ADDR
+      value: checkout:8080
+    - name: CURRENCY_ADDR
+      value: currency:8080
+    - name: PRODUCT_CATALOG_ADDR
+      value: product-catalog:8080
+    - name: RECOMMENDATION_ADDR
+      value: recommendation:8080
+    - name: SHIPPING_ADDR
+      value: shipping:8080
+    - name: FLAGD_HOST
+      value: flagd
+    - name: FLAGD_PORT
+      value: "8013"
+    - name: OTEL_COLLECTOR_HOST
+      value: $(OTEL_COLLECTOR_NAME)
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://$(OTEL_COLLECTOR_NAME):4317
+    - name: WEB_OTEL_SERVICE_NAME
+      value: frontend-web
+    - name: PUBLIC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+      value: http://localhost:8080/otlp-http/v1/traces
+    resources:
+      limits:
+        memory: 250Mi
+    securityContext:
+      runAsGroup: 1001
+      runAsNonRoot: true
+      runAsUser: 1001
+    service:
+      port: 8080
+    useDefault:
+      env: true
+  frontend-proxy:
+    enabled: true
+    env:
+    - name: ENVOY_PORT
+      value: "8080"
+    - name: FLAGD_HOST
+      value: flagd
+    - name: FLAGD_PORT
+      value: "8013"
+    - name: FLAGD_UI_HOST
+      value: flagd
+    - name: FLAGD_UI_PORT
+      value: "4000"
+    - name: FRONTEND_HOST
+      value: frontend
+    - name: FRONTEND_PORT
+      value: "8080"
+    - name: GRAFANA_HOST
+      value: grafana
+    - name: GRAFANA_PORT
+      value: "80"
+    - name: IMAGE_PROVIDER_HOST
+      value: image-provider
+    - name: IMAGE_PROVIDER_PORT
+      value: "8081"
+    - name: JAEGER_HOST
+      value: jaeger-query
+    - name: JAEGER_PORT
+      value: "16686"
+    - name: LOCUST_WEB_HOST
+      value: load-generator
+    - name: LOCUST_WEB_PORT
+      value: "8089"
+    - name: OTEL_COLLECTOR_HOST
+      value: $(OTEL_COLLECTOR_NAME)
+    - name: OTEL_COLLECTOR_PORT_GRPC
+      value: "4317"
+    - name: OTEL_COLLECTOR_PORT_HTTP
+      value: "4318"
+    resources:
+      limits:
+        memory: 65Mi
+    securityContext:
+      runAsGroup: 101
+      runAsNonRoot: true
+      runAsUser: 101
+    service:
+      port: 8080
+    useDefault:
+      env: true
+  image-provider:
+    enabled: true
+    env:
+    - name: IMAGE_PROVIDER_PORT
+      value: "8081"
+    - name: OTEL_COLLECTOR_PORT_GRPC
+      value: "4317"
+    - name: OTEL_COLLECTOR_HOST
+      value: $(OTEL_COLLECTOR_NAME)
+    resources:
+      limits:
+        memory: 50Mi
+    service:
+      port: 8081
+    useDefault:
+      env: true
+  kafka:
+    enabled: true
+    env:
+    - name: KAFKA_ADVERTISED_LISTENERS
+      value: PLAINTEXT://kafka:9092
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://$(OTEL_COLLECTOR_NAME):4318
+    - name: KAFKA_HEAP_OPTS
+      value: -Xmx400M -Xms400M
+    ports:
+    - name: plaintext
+      value: 9092
+    - name: controller
+      value: 9093
+    replicas: 1
+    resources:
+      limits:
+        memory: 600Mi
+    securityContext:
+      runAsGroup: 1000
+      runAsNonRoot: true
+      runAsUser: 1000
+    useDefault:
+      env: true
+  load-generator:
+    enabled: true
+    env:
+    - name: LOCUST_WEB_HOST
+      value: 0.0.0.0
+    - name: LOCUST_WEB_PORT
+      value: "8089"
+    - name: LOCUST_USERS
+      value: "10"
+    - name: LOCUST_SPAWN_RATE
+      value: "1"
+    - name: LOCUST_HOST
+      value: http://frontend-proxy:8080
+    - name: LOCUST_HEADLESS
+      value: "false"
+    - name: LOCUST_AUTOSTART
+      value: "true"
+    - name: LOCUST_BROWSER_TRAFFIC_ENABLED
+      value: "true"
+    - name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
+      value: python
+    - name: FLAGD_HOST
+      value: flagd
+    - name: FLAGD_OFREP_PORT
+      value: "8016"
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://$(OTEL_COLLECTOR_NAME):4317
+    resources:
+      limits:
+        memory: 1500Mi
+    service:
+      port: 8089
+    useDefault:
+      env: true
+  payment:
+    enabled: true
+    env:
+    - name: PAYMENT_PORT
+      value: "8080"
+    - name: FLAGD_HOST
+      value: flagd
+    - name: FLAGD_PORT
+      value: "8013"
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://$(OTEL_COLLECTOR_NAME):4317
+    resources:
+      limits:
+        memory: 120Mi
+    securityContext:
+      runAsGroup: 1000
+      runAsNonRoot: true
+      runAsUser: 1000
+    service:
+      port: 8080
+    useDefault:
+      env: true
+  product-catalog:
+    enabled: true
+    env:
+    - name: PRODUCT_CATALOG_PORT
+      value: "8080"
+    - name: PRODUCT_CATALOG_RELOAD_INTERVAL
+      value: "10"
+    - name: FLAGD_HOST
+      value: flagd
+    - name: FLAGD_PORT
+      value: "8013"
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://$(OTEL_COLLECTOR_NAME):4317
+    mountedConfigMaps:
+    - existingConfigMap: product-catalog-products
+      mountPath: /usr/src/app/products
+      name: product-catalog-products
+    resources:
+      limits:
+        memory: 20Mi
+    service:
+      port: 8080
+    useDefault:
+      env: true
+  quote:
+    enabled: true
+    env:
+    - name: QUOTE_PORT
+      value: "8080"
+    - name: OTEL_PHP_AUTOLOAD_ENABLED
+      value: "true"
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://$(OTEL_COLLECTOR_NAME):4318
+    resources:
+      limits:
+        memory: 40Mi
+    securityContext:
+      runAsGroup: 33
+      runAsNonRoot: true
+      runAsUser: 33
+    service:
+      port: 8080
+    useDefault:
+      env: true
+  recommendation:
+    enabled: true
+    env:
+    - name: RECOMMENDATION_PORT
+      value: "8080"
+    - name: PRODUCT_CATALOG_ADDR
+      value: product-catalog:8080
+    - name: OTEL_PYTHON_LOG_CORRELATION
+      value: "true"
+    - name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
+      value: python
+    - name: FLAGD_HOST
+      value: flagd
+    - name: FLAGD_PORT
+      value: "8013"
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://$(OTEL_COLLECTOR_NAME):4317
+    resources:
+      limits:
+        memory: 500Mi
+    service:
+      port: 8080
+    useDefault:
+      env: true
+  shipping:
+    enabled: true
+    env:
+    - name: SHIPPING_PORT
+      value: "8080"
+    - name: QUOTE_ADDR
+      value: http://quote:8080
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://$(OTEL_COLLECTOR_NAME):4317
+    resources:
+      limits:
+        memory: 20Mi
+    service:
+      port: 8080
+    useDefault:
+      env: true
+  valkey-cart:
+    enabled: true
+    imageOverride:
+      repository: valkey/valkey
+      tag: 7.2-alpine
+    ports:
+    - name: valkey-cart
+      value: 6379
+    replicas: 1
+    resources:
+      limits:
+        memory: 20Mi
+    securityContext:
+      runAsGroup: 1000
+      runAsNonRoot: true
+      runAsUser: 999
+    useDefault:
+      env: true
+default:
+  env:
+  - name: OTEL_SERVICE_NAME
+    valueFrom:
+      fieldRef:
+        apiVersion: v1
+        fieldPath: metadata.labels['app.kubernetes.io/component']
+  - name: OTEL_COLLECTOR_NAME
+    value: otel-collector
+  - name: OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
+    value: cumulative
+  - name: OTEL_RESOURCE_ATTRIBUTES
+    value: service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version={{
+      .Chart.AppVersion }}
+  envOverrides: []
+  image:
+    pullPolicy: IfNotPresent
+    pullSecrets: []
+    repository: ghcr.io/open-telemetry/demo
+    tag: ""
+  replicas: 1
+  revisionHistoryLimit: 10
+  schedulingRules:
+    affinity: {}
+    nodeSelector: {}
+    tolerations: []
+  securityContext: {}
+grafana:
+  admin:
+    existingSecret: ""
+    passwordKey: admin-password
+    userKey: admin-user
+  adminPassword: admin
+  adminUser: admin
+  affinity: {}
+  alerting: {}
+  assertNoLeakedSecrets: true
+  automountServiceAccountToken: true
+  autoscaling:
+    behavior: {}
+    enabled: false
+    maxReplicas: 5
+    minReplicas: 1
+    targetCPU: "60"
+    targetMemory: ""
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+    seccompProfile:
+      type: RuntimeDefault
+  createConfigmap: true
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+      - disableDeletion: false
+        editable: true
+        folder: ""
+        name: default
+        options:
+          path: /var/lib/grafana/dashboards/default
+        orgId: 1
+        type: file
+  dashboards: {}
+  dashboardsConfigMaps:
+    default: grafana-dashboards
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+      - editable: true
+        isDefault: true
+        jsonData:
+          exemplarTraceIdDestinations:
+          - datasourceUid: webstore-traces
+            name: trace_id
+          - name: trace_id
+            url: http://localhost:8080/jaeger/ui/trace/$${__value.raw}
+            urlDisplayLabel: View in Jaeger UI
+        name: Prometheus
+        type: prometheus
+        uid: webstore-metrics
+        url: http://prometheus:9090
+      - editable: true
+        isDefault: false
+        name: Jaeger
+        type: jaeger
+        uid: webstore-traces
+        url: http://jaeger-query:16686/jaeger/ui
+      - access: proxy
+        editable: true
+        isDefault: false
+        jsonData:
+          database: otel
+          flavor: opensearch
+          logLevelField: severity.text.keyword
+          logMessageField: body
+          pplEnabled: true
+          timeField: observedTimestamp
+          version: 2.18.0
+        name: OpenSearch
+        type: grafana-opensearch-datasource
+        uid: webstore-logs
+        url: http://opensearch:9200/
+  deploymentStrategy:
+    type: RollingUpdate
+  dnsConfig: {}
+  dnsPolicy: null
+  downloadDashboards:
+    env: {}
+    envFromSecret: ""
+    envValueFrom: {}
+    resources: {}
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+      seccompProfile:
+        type: RuntimeDefault
+  downloadDashboardsImage:
+    pullPolicy: IfNotPresent
+    registry: docker.io
+    repository: curlimages/curl
+    sha: ""
+    tag: 8.9.1
+  enableKubeBackwardCompatibility: false
+  enableServiceLinks: true
+  enabled: true
+  env: {}
+  envFromConfigMaps: []
+  envFromSecret: ""
+  envFromSecrets: []
+  envRenderSecret: {}
+  envValueFrom: {}
+  extraConfigmapMounts: []
+  extraContainerVolumes: []
+  extraContainers: ""
+  extraEmptyDirMounts: []
+  extraExposePorts: []
+  extraInitContainers: []
+  extraLabels: {}
+  extraObjects: []
+  extraSecretMounts: []
+  extraVolumeMounts: []
+  extraVolumes: []
+  fullnameOverride: grafana
+  global:
+    imagePullSecrets: []
+    imageRegistry: null
+  gossipPortName: gossip
+  grafana.ini:
+    analytics:
+      check_for_updates: true
+    auth:
+      disable_login_form: true
+    auth.anonymous:
+      enabled: true
+      org_name: Main Org.
+      org_role: Admin
+    grafana_net:
+      url: https://grafana.net
+    log:
+      mode: console
+    paths:
+      data: /var/lib/grafana/
+      logs: /var/log/grafana
+      plugins: /var/lib/grafana/plugins
+      provisioning: /etc/grafana/provisioning
+    server:
+      domain: '{{ if (and .Values.ingress.enabled .Values.ingress.hosts) }}{{ tpl
+        (.Values.ingress.hosts | first) . }}{{ else }}''''{{ end }}'
+      root_url: '%(protocol)s://%(domain)s:%(http_port)s/grafana'
+      serve_from_sub_path: true
+  headlessService: false
+  hostAliases: []
+  image:
+    pullPolicy: IfNotPresent
+    pullSecrets: []
+    registry: docker.io
+    repository: grafana/grafana
+    sha: ""
+    tag: ""
+  imageRenderer:
+    affinity: {}
+    automountServiceAccountToken: false
+    autoscaling:
+      behavior: {}
+      enabled: false
+      maxReplicas: 5
+      minReplicas: 1
+      targetCPU: "60"
+      targetMemory: ""
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+      readOnlyRootFilesystem: true
+      seccompProfile:
+        type: RuntimeDefault
+    deploymentStrategy: {}
+    enabled: false
+    env:
+      HTTP_HOST: 0.0.0.0
+      XDG_CACHE_HOME: /tmp/.chromium
+      XDG_CONFIG_HOME: /tmp/.chromium
+    envValueFrom: {}
+    extraConfigmapMounts: []
+    extraSecretMounts: []
+    extraVolumeMounts: []
+    extraVolumes: []
+    grafanaProtocol: http
+    grafanaSubPath: ""
+    hostAliases: []
+    image:
+      pullPolicy: Always
+      registry: docker.io
+      repository: grafana/grafana-image-renderer
+      sha: ""
+      tag: latest
+    networkPolicy:
+      extraIngressSelectors: []
+      limitEgress: false
+      limitIngress: true
+    nodeSelector: {}
+    podAnnotations: {}
+    podPortName: http
+    priorityClassName: ""
+    renderingCallbackURL: ""
+    replicas: 1
+    resources: {}
+    revisionHistoryLimit: 10
+    securityContext: {}
+    serverURL: ""
+    service:
+      appProtocol: ""
+      enabled: true
+      port: 8081
+      portName: http
+      targetPort: 8081
+    serviceAccountName: ""
+    serviceMonitor:
+      enabled: false
+      interval: 1m
+      labels: {}
+      path: /metrics
+      relabelings: []
+      scheme: http
+      scrapeTimeout: 30s
+      targetLabels: []
+      tlsConfig: {}
+    tolerations: []
+  ingress:
+    annotations: {}
+    enabled: false
+    extraPaths: []
+    hosts:
+    - chart-example.local
+    labels: {}
+    path: /
+    pathType: Prefix
+    tls: []
+  initChownData:
+    enabled: true
+    image:
+      pullPolicy: IfNotPresent
+      registry: docker.io
+      repository: library/busybox
+      sha: ""
+      tag: 1.31.1
+    resources: {}
+    securityContext:
+      capabilities:
+        add:
+        - CHOWN
+      runAsNonRoot: false
+      runAsUser: 0
+      seccompProfile:
+        type: RuntimeDefault
+  ldap:
+    config: ""
+    enabled: false
+    existingSecret: ""
+  lifecycleHooks: {}
+  livenessProbe:
+    failureThreshold: 10
+    httpGet:
+      path: /api/health
+      port: 3000
+    initialDelaySeconds: 60
+    timeoutSeconds: 30
+  namespaceOverride: ""
+  networkPolicy:
+    allowExternal: true
+    egress:
+      blockDNSResolution: false
+      enabled: false
+      ports: []
+      to: []
+    enabled: false
+    explicitNamespacesSelector: {}
+    ingress: true
+  nodeSelector: {}
+  notifiers: {}
+  persistence:
+    accessModes:
+    - ReadWriteOnce
+    disableWarning: false
+    enabled: false
+    extraPvcLabels: {}
+    finalizers:
+    - kubernetes.io/pvc-protection
+    inMemory:
+      enabled: false
+    lookupVolumeName: true
+    size: 10Gi
+    type: pvc
+  plugins:
+  - grafana-opensearch-datasource
+  podDisruptionBudget: {}
+  podPortName: grafana
+  rbac:
+    create: true
+    extraClusterRoleRules: []
+    extraRoleRules: []
+    namespaced: false
+    pspEnabled: false
+    pspUseAppArmor: false
+  readinessProbe:
+    httpGet:
+      path: /api/health
+      port: 3000
+  replicas: 1
+  resources:
+    limits:
+      memory: 150Mi
+  revisionHistoryLimit: 10
+  route:
+    main:
+      additionalRules: []
+      annotations: {}
+      apiVersion: gateway.networking.k8s.io/v1
+      enabled: false
+      filters: []
+      hostnames: []
+      kind: HTTPRoute
+      labels: {}
+      matches:
+      - path:
+          type: PathPrefix
+          value: /
+      parentRefs: []
+  securityContext:
+    fsGroup: 472
+    runAsGroup: 472
+    runAsNonRoot: true
+    runAsUser: 472
+  service:
+    annotations: {}
+    appProtocol: ""
+    enabled: true
+    ipFamilies: []
+    ipFamilyPolicy: ""
+    labels: {}
+    loadBalancerClass: ""
+    loadBalancerIP: ""
+    loadBalancerSourceRanges: []
+    port: 80
+    portName: service
+    sessionAffinity: ""
+    targetPort: 3000
+    type: ClusterIP
+  serviceAccount:
+    automountServiceAccountToken: false
+    create: true
+    labels: {}
+    name: null
+    nameTest: null
+  serviceMonitor:
+    basicAuth: {}
+    enabled: false
+    interval: 30s
+    labels: {}
+    metricRelabelings: []
+    path: /metrics
+    relabelings: []
+    scheme: http
+    scrapeTimeout: 30s
+    targetLabels: []
+    tlsConfig: {}
+  shareProcessNamespace: false
+  sidecar:
+    alerts:
+      enabled: false
+      env: {}
+      extraMounts: []
+      initAlerts: false
+      label: grafana_alert
+      labelValue: ""
+      reloadURL: http://localhost:3000/api/admin/provisioning/alerting/reload
+      resource: both
+      script: null
+      searchNamespace: null
+      sizeLimit: {}
+      skipReload: false
+      watchMethod: WATCH
+    dashboards:
+      SCProvider: true
+      defaultFolderName: null
+      enabled: false
+      env: {}
+      envValueFrom: {}
+      extraMounts: []
+      folder: /tmp/dashboards
+      folderAnnotation: null
+      label: grafana_dashboard
+      labelValue: ""
+      provider:
+        allowUiUpdates: false
+        disableDelete: false
+        folder: ""
+        folderUid: ""
+        foldersFromFilesStructure: false
+        name: sidecarProvider
+        orgid: 1
+        type: file
+      reloadURL: http://localhost:3000/api/admin/provisioning/dashboards/reload
+      resource: both
+      script: null
+      searchNamespace: null
+      sizeLimit: {}
+      skipReload: false
+      watchMethod: WATCH
+    datasources:
+      enabled: false
+      env: {}
+      envValueFrom: {}
+      extraMounts: []
+      initDatasources: false
+      label: grafana_datasource
+      labelValue: ""
+      reloadURL: http://localhost:3000/api/admin/provisioning/datasources/reload
+      resource: both
+      script: null
+      searchNamespace: null
+      sizeLimit: {}
+      skipReload: false
+      watchMethod: WATCH
+    enableUniqueFilenames: false
+    image:
+      registry: quay.io
+      repository: kiwigrid/k8s-sidecar
+      sha: ""
+      tag: 1.30.0
+    imagePullPolicy: IfNotPresent
+    livenessProbe: {}
+    notifiers:
+      enabled: false
+      env: {}
+      extraMounts: []
+      initNotifiers: false
+      label: grafana_notifier
+      labelValue: ""
+      reloadURL: http://localhost:3000/api/admin/provisioning/notifications/reload
+      resource: both
+      script: null
+      searchNamespace: null
+      sizeLimit: {}
+      skipReload: false
+      watchMethod: WATCH
+    plugins:
+      enabled: false
+      env: {}
+      extraMounts: []
+      initPlugins: false
+      label: grafana_plugin
+      labelValue: ""
+      reloadURL: http://localhost:3000/api/admin/provisioning/plugins/reload
+      resource: both
+      script: null
+      searchNamespace: null
+      sizeLimit: {}
+      skipReload: false
+      watchMethod: WATCH
+    readinessProbe: {}
+    resources: {}
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - ALL
+      seccompProfile:
+        type: RuntimeDefault
+  smtp:
+    existingSecret: ""
+    passwordKey: password
+    userKey: user
+  testFramework:
+    enabled: false
+    image:
+      registry: docker.io
+      repository: bats/bats
+      tag: v1.4.1
+    imagePullPolicy: IfNotPresent
+    resources: {}
+    securityContext: {}
+  tolerations: []
+  topologySpreadConstraints: []
+  useStatefulSet: false
+jaeger:
+  agent:
+    affinity: {}
+    annotations: {}
+    cmdlineParams: {}
+    daemonset:
+      updateStrategy: {}
+      useHostPort: false
+    dnsPolicy: ClusterFirst
+    enabled: false
+    envFrom: []
+    extraConfigmapMounts: []
+    extraEnv: []
+    extraSecretMounts: []
+    image:
+      digest: ""
+      pullPolicy: IfNotPresent
+      pullSecrets: []
+      registry: ""
+      repository: jaegertracing/jaeger-agent
+      tag: ""
+    initContainers: []
+    nodeSelector: {}
+    podAnnotations: {}
+    podLabels: {}
+    podSecurityContext: {}
+    priorityClassName: ""
+    resources: {}
+    securityContext: {}
+    service:
+      annotations: {}
+      binaryPort: 6832
+      compactPort: 6831
+      loadBalancerSourceRanges: []
+      samplingPort: 5778
+      type: ClusterIP
+      zipkinThriftPort: 5775
+    serviceAccount:
+      annotations: {}
+      automountServiceAccountToken: false
+      create: true
+      name: null
+    serviceMonitor:
+      additionalLabels: {}
+      enabled: false
+      metricRelabelings: []
+      relabelings: []
+    tolerations: []
+    useHostNetwork: false
+  allInOne:
+    affinity: {}
+    args:
+    - --memory.max-traces=5000
+    - --query.base-path=/jaeger/ui
+    - --prometheus.server-url=http://prometheus:9090
+    - --prometheus.query.normalize-calls=true
+    - --prometheus.query.normalize-duration=true
+    enabled: true
+    extraEnv:
+    - name: METRICS_STORAGE_TYPE
+      value: prometheus
+    - name: COLLECTOR_OTLP_GRPC_HOST_PORT
+      value: 0.0.0.0:4317
+    - name: COLLECTOR_OTLP_HTTP_HOST_PORT
+      value: 0.0.0.0:4318
+    extraSecretMounts: []
+    image:
+      digest: ""
+      pullPolicy: IfNotPresent
+      pullSecrets: []
+      registry: ""
+      repository: jaegertracing/all-in-one
+      tag: ""
+    ingress:
+      annotations: {}
+      enabled: false
+      labels: {}
+      pathType: null
+    nodeSelector: {}
+    podSecurityContext:
+      fsGroup: 10001
+      runAsGroup: 10001
+      runAsUser: 10001
+    replicas: 1
+    resources:
+      limits:
+        memory: 400Mi
+    securityContext: {}
+    service:
+      collector:
+        otlp:
+          grpc:
+            name: otlp-grpc
+          http:
+            name: otlp-http
+      headless: true
+    serviceAccount:
+      annotations: {}
+      automountServiceAccountToken: true
+    tolerations: []
+    topologySpreadContraints: []
+  cassandra:
+    config:
+      cluster_name: jaeger
+      dc_name: dc1
+      endpoint_snitch: GossipingPropertyFileSnitch
+      rack_name: rack1
+      seed_size: 1
+    persistence:
+      enabled: false
+  collector:
+    affinity: {}
+    annotations: {}
+    autoscaling:
+      behavior: {}
+      enabled: false
+      maxReplicas: 10
+      minReplicas: 2
+    basePath: /
+    cmdlineParams: {}
+    dnsPolicy: ClusterFirst
+    enabled: false
+    envFrom: []
+    extraConfigmapMounts: []
+    extraEnv: []
+    extraSecretMounts: []
+    image:
+      digest: ""
+      pullPolicy: IfNotPresent
+      pullSecrets: []
+      registry: ""
+      repository: jaegertracing/jaeger-collector
+      tag: ""
+    ingress:
+      annotations: {}
+      enabled: false
+      labels: {}
+      pathType: null
+    initContainers: []
+    networkPolicy:
+      enabled: false
+    nodeSelector: {}
+    podAnnotations: {}
+    podLabels: {}
+    podSecurityContext: {}
+    priorityClassName: ""
+    replicaCount: 1
+    resources: {}
+    securityContext: {}
+    service:
+      admin:
+        name: admin
+        targetPort: admin
+      annotations: {}
+      clusterIP: ""
+      grpc:
+        port: 14250
+      http:
+        port: 14268
+      loadBalancerIP: ""
+      loadBalancerSourceRanges: []
+      otlp:
+        grpc: {}
+        http: {}
+      type: ClusterIP
+      zipkin: {}
+    serviceAccount:
+      annotations: {}
+      automountServiceAccountToken: false
+      create: true
+      name: null
+    serviceMonitor:
+      additionalLabels: {}
+      enabled: false
+      metricRelabelings: []
+      relabelings: []
+    tolerations: []
+  common:
+    exampleValue: common-chart
+    global:
+      imageRegistry: null
+  elasticsearch: {}
+  enabled: true
+  esIndexCleaner:
+    affinity: {}
+    annotations: {}
+    cmdlineParams: {}
+    concurrencyPolicy: Forbid
+    enabled: false
+    extraConfigmapMounts: []
+    extraEnv: []
+    extraSecretMounts: []
+    failedJobsHistoryLimit: 3
+    image:
+      digest: ""
+      pullPolicy: IfNotPresent
+      pullSecrets: []
+      registry: ""
+      repository: jaegertracing/jaeger-es-index-cleaner
+      tag: ""
+    nodeSelector: {}
+    numberOfDays: 7
+    podAnnotations: {}
+    podLabels: {}
+    podSecurityContext:
+      runAsUser: 1000
+    resources: {}
+    schedule: 55 23 * * *
+    securityContext:
+      runAsUser: 1000
+    serviceAccount:
+      annotations: {}
+      automountServiceAccountToken: false
+      create: true
+      name: null
+    successfulJobsHistoryLimit: 3
+    tolerations: []
+  esLookback:
+    affinity: {}
+    annotations: {}
+    cmdlineParams: {}
+    concurrencyPolicy: Forbid
+    enabled: false
+    extraConfigmapMounts: []
+    extraEnv:
+    - name: UNIT
+      value: days
+    - name: UNIT_COUNT
+      value: "7"
+    extraSecretMounts: []
+    failedJobsHistoryLimit: 3
+    image:
+      digest: ""
+      pullPolicy: IfNotPresent
+      pullSecrets: []
+      registry: ""
+      repository: jaegertracing/jaeger-es-rollover
+      tag: ""
+    nodeSelector: {}
+    podAnnotations: {}
+    podLabels: {}
+    podSecurityContext:
+      runAsUser: 1000
+    resources: {}
+    schedule: 5 0 * * *
+    securityContext: {}
+    serviceAccount:
+      annotations: {}
+      automountServiceAccountToken: false
+      create: true
+      name: null
+    successfulJobsHistoryLimit: 3
+    tolerations: []
+  esRollover:
+    affinity: {}
+    annotations: {}
+    cmdlineParams: {}
+    concurrencyPolicy: Forbid
+    enabled: false
+    extraConfigmapMounts: []
+    extraEnv:
+    - name: CONDITIONS
+      value: '{"max_age": "1d"}'
+    extraSecretMounts: []
+    failedJobsHistoryLimit: 3
+    image:
+      digest: ""
+      pullPolicy: IfNotPresent
+      pullSecrets: []
+      registry: ""
+      repository: jaegertracing/jaeger-es-rollover
+      tag: ""
+    initHook:
+      annotations: {}
+      extraEnv: []
+      podAnnotations: {}
+      podLabels: {}
+      ttlSecondsAfterFinished: 120
+    nodeSelector: {}
+    podAnnotations: {}
+    podLabels: {}
+    podSecurityContext:
+      runAsUser: 1000
+    resources: {}
+    schedule: 10 0 * * *
+    securityContext: {}
+    serviceAccount:
+      automountServiceAccountToken: false
+      create: true
+      name: null
+    successfulJobsHistoryLimit: 3
+    tolerations: []
+  extraObjects: []
+  fullnameOverride: jaeger
+  global:
+    imageRegistry: null
+  hotrod:
+    affinity: {}
+    args:
+    - all
+    enabled: false
+    extraArgs: []
+    extraEnv: []
+    image:
+      digest: ""
+      pullPolicy: IfNotPresent
+      pullSecrets: []
+      registry: ""
+      repository: jaegertracing/example-hotrod
+      tag: ""
+    ingress:
+      annotations: {}
+      enabled: false
+      hosts:
+      - chart-example.local
+      pathType: null
+      tls: null
+    nodeSelector: {}
+    podSecurityContext: {}
+    replicaCount: 1
+    resources: {}
+    securityContext: {}
+    service:
+      annotations: {}
+      loadBalancerSourceRanges: []
+      name: hotrod
+      port: 80
+      type: ClusterIP
+    serviceAccount:
+      annotations: {}
+      automountServiceAccountToken: false
+      create: true
+      name: null
+    tolerations: []
+    tracing:
+      host: null
+      port: 6831
+  ingester:
+    affinity: {}
+    annotations: {}
+    autoscaling:
+      behavior: {}
+      enabled: false
+      maxReplicas: 10
+      minReplicas: 2
+    cmdlineParams: {}
+    dnsPolicy: ClusterFirst
+    enabled: false
+    envFrom: []
+    extraConfigmapMounts: []
+    extraEnv: []
+    extraSecretMounts: []
+    image:
+      digest: ""
+      pullPolicy: IfNotPresent
+      pullSecrets: []
+      registry: ""
+      repository: jaegertracing/jaeger-ingester
+      tag: ""
+    initContainers: []
+    nodeSelector: {}
+    podAnnotations: {}
+    podLabels: {}
+    podSecurityContext: {}
+    replicaCount: 1
+    resources: {}
+    securityContext: {}
+    service:
+      annotations: {}
+      loadBalancerSourceRanges: []
+      type: ClusterIP
+    serviceAccount:
+      annotations: {}
+      automountServiceAccountToken: false
+      create: true
+      name: null
+    serviceMonitor:
+      additionalLabels: {}
+      enabled: false
+      metricRelabelings: []
+      relabelings: []
+    tolerations: []
+  kafka:
+    controller:
+      extraConfig: |
+        auto.create.topics.enable=true
+      replicaCount: 3
+    listeners:
+      client:
+        protocol: PLAINTEXT
+      controller:
+        protocol: PLAINTEXT
+      external:
+        protocol: PLAINTEXT
+      interbroker:
+        protocol: PLAINTEXT
+  nameOverride: ""
+  networkPolicy:
+    enabled: false
+  provisionDataStore:
+    cassandra: false
+    elasticsearch: false
+    kafka: false
+  query:
+    affinity: {}
+    agentSidecar:
+      enabled: true
+    annotations: {}
+    basePath: /
+    cmdlineParams: {}
+    dnsPolicy: ClusterFirst
+    enabled: false
+    envFrom: []
+    extraConfigmapMounts: []
+    extraEnv: []
+    extraVolumes: []
+    image:
+      digest: ""
+      pullPolicy: IfNotPresent
+      pullSecrets: []
+      registry: ""
+      repository: jaegertracing/jaeger-query
+      tag: ""
+    ingress:
+      annotations: {}
+      enabled: false
+      health:
+        exposed: false
+      labels: {}
+      pathType: null
+    initContainers: []
+    networkPolicy:
+      enabled: false
+    nodeSelector: {}
+    oAuthSidecar:
+      args: []
+      containerPort: 4180
+      enabled: false
+      extraConfigmapMounts: []
+      extraEnv: []
+      extraSecretMounts: []
+      image:
+        digest: ""
+        pullPolicy: IfNotPresent
+        pullSecrets: []
+        registry: quay.io
+        repository: oauth2-proxy/oauth2-proxy
+        tag: v7.6.0
+      resources: {}
+    podAnnotations: {}
+    podLabels: {}
+    podSecurityContext: {}
+    priorityClassName: ""
+    replicaCount: 1
+    resources: {}
+    securityContext: {}
+    service:
+      admin:
+        name: admin
+        targetPort: admin
+      annotations: {}
+      loadBalancerSourceRanges: []
+      port: 80
+      type: ClusterIP
+    serviceAccount:
+      annotations: {}
+      automountServiceAccountToken: false
+      create: true
+      name: null
+    serviceMonitor:
+      additionalLabels: {}
+      enabled: false
+      metricRelabelings: []
+      relabelings: []
+    sidecars: []
+    tolerations: []
+  schema:
+    activeDeadlineSeconds: 300
+    annotations: {}
+    extraEnv: []
+    image:
+      digest: ""
+      pullPolicy: IfNotPresent
+      pullSecrets: []
+      registry: ""
+      repository: jaegertracing/jaeger-cassandra-schema
+      tag: ""
+    nodeSelector: {}
+    podAnnotations: {}
+    podLabels: {}
+    podSecurityContext: {}
+    resources: {}
+    securityContext: {}
+    serviceAccount:
+      automountServiceAccountToken: true
+      create: true
+      name: null
+    tolerations: []
+  spark:
+    affinity: {}
+    annotations: {}
+    cmdlineParams: {}
+    concurrencyPolicy: Forbid
+    enabled: false
+    extraConfigmapMounts: []
+    extraEnv: []
+    extraSecretMounts: []
+    failedJobsHistoryLimit: 5
+    image:
+      digest: ""
+      pullPolicy: IfNotPresent
+      pullSecrets: []
+      registry: ""
+      repository: jaegertracing/spark-dependencies
+      tag: latest
+    nodeSelector: {}
+    podAnnotations: {}
+    podLabels: {}
+    podSecurityContext: {}
+    resources: {}
+    schedule: 49 23 * * *
+    securityContext: {}
+    serviceAccount:
+      annotations: {}
+      automountServiceAccountToken: false
+      create: true
+      name: null
+    successfulJobsHistoryLimit: 5
+    tolerations: []
+  storage:
+    badger:
+      ephemeral: true
+      extraEnv: []
+      persistence:
+        mountPath: /mnt/data
+        useExistingPvcName: ""
+    cassandra:
+      cmdlineParams: {}
+      extraEnv: []
+      host: cassandra
+      keyspace: jaeger_v1_test
+      password: password
+      port: 9042
+      schemaJobEnabled: true
+      tls:
+        enabled: false
+        secretName: cassandra-tls-secret
+      usePassword: true
+      user: user
+    elasticsearch:
+      anonymous: false
+      cmdlineParams: {}
+      extraEnv: []
+      host: elasticsearch-master
+      nodesWanOnly: false
+      password: changeme
+      port: 9200
+      scheme: http
+      tls:
+        ca: /es-tls/ca-cert.pem
+        enabled: false
+        mountPath: /es-tls/ca-cert.pem
+        secretName: es-tls-secret
+        subPath: ca-cert.pem
+      usePassword: true
+      user: elastic
+    grpcPlugin:
+      extraEnv: []
+    kafka:
+      authentication: none
+      brokers:
+      - kafka:9092
+      extraEnv: []
+      topic: jaeger_v1_test
+    memory:
+      extraEnv: []
+    type: memory
+  tag: ""
+opensearch:
+  antiAffinity: soft
+  antiAffinityTopologyKey: kubernetes.io/hostname
+  clusterName: demo-cluster
+  config:
+    opensearch.yml: |
+      cluster.name: opensearch-cluster
+
+      # Bind to all interfaces because we don't know what IP address Docker will assign to us.
+      network.host: 0.0.0.0
+
+      # Setting network.host to a non-loopback address enables the annoying bootstrap checks. "Single-node" mode disables them again.
+      # Implicitly done if ".singleNode" is set to "true".
+      # discovery.type: single-node
+
+      # Start OpenSearch Security Demo Configuration
+      # WARNING: revise all the lines below before you go into production
+      # plugins:
+      #   security:
+      #     ssl:
+      #       transport:
+      #         pemcert_filepath: esnode.pem
+      #         pemkey_filepath: esnode-key.pem
+      #         pemtrustedcas_filepath: root-ca.pem
+      #         enforce_hostname_verification: false
+      #       http:
+      #         enabled: true
+      #         pemcert_filepath: esnode.pem
+      #         pemkey_filepath: esnode-key.pem
+      #         pemtrustedcas_filepath: root-ca.pem
+      #     allow_unsafe_democertificates: true
+      #     allow_default_init_securityindex: true
+      #     authcz:
+      #       admin_dn:
+      #         - CN=kirk,OU=client,O=client,L=test,C=de
+      #     audit.type: internal_opensearch
+      #     enable_snapshot_restore_privilege: true
+      #     check_snapshot_restore_write_privileges: true
+      #     restapi:
+      #       roles_enabled: ["all_access", "security_rest_api_access"]
+      #     system_indices:
+      #       enabled: true
+      #       indices:
+      #         [
+      #           ".opendistro-alerting-config",
+      #           ".opendistro-alerting-alert*",
+      #           ".opendistro-anomaly-results*",
+      #           ".opendistro-anomaly-detector*",
+      #           ".opendistro-anomaly-checkpoints",
+      #           ".opendistro-anomaly-detection-state",
+      #           ".opendistro-reports-*",
+      #           ".opendistro-notifications-*",
+      #           ".opendistro-notebooks",
+      #           ".opendistro-asynchronous-search-response*",
+      #         ]
+      ######## End OpenSearch Security Demo Configuration ########
+  customAntiAffinity: {}
+  enableServiceLinks: true
+  enabled: true
+  envFrom: []
+  extraContainers: []
+  extraEnvs:
+  - name: bootstrap.memory_lock
+    value: "true"
+  - name: DISABLE_INSTALL_DEMO_CONFIG
+    value: "true"
+  - name: DISABLE_SECURITY_PLUGIN
+    value: "true"
+  extraInitContainers: []
+  extraObjects: []
+  extraVolumeMounts: []
+  extraVolumes: []
+  fsGroup: ""
+  fullnameOverride: opensearch
+  global:
+    dockerRegistry: ""
+  hostAliases: []
+  httpHostPort: ""
+  httpPort: 9200
+  image:
+    pullPolicy: IfNotPresent
+    repository: opensearchproject/opensearch
+    tag: ""
+  imagePullSecrets: []
+  ingress:
+    annotations: {}
+    enabled: false
+    hosts:
+    - chart-example.local
+    ingressLabels: {}
+    path: /
+    tls: []
+  initResources: {}
+  keystore: []
+  labels: {}
+  lifecycle: {}
+  livenessProbe: {}
+  majorVersion: ""
+  masterService: opensearch-cluster-master
+  masterTerminationFix: false
+  maxUnavailable: 1
+  metricsPort: 9600
+  nameOverride: ""
+  networkHost: 0.0.0.0
+  networkPolicy:
+    create: false
+    http:
+      enabled: false
+  nodeAffinity: {}
+  nodeGroup: otel-demo
+  nodeSelector: {}
+  openSearchAnnotations: {}
+  opensearchHome: /usr/share/opensearch
+  opensearchJavaOpts: -Xms300m -Xmx300m
+  opensearchLifecycle: {}
+  persistence:
+    accessModes:
+    - ReadWriteOnce
+    annotations: {}
+    enableInitChown: true
+    enabled: false
+    labels:
+      additionalLabels: {}
+      enabled: false
+    size: 8Gi
+  plugins:
+    enabled: false
+    installList: []
+    removeList: []
+  podAffinity: {}
+  podAnnotations: {}
+  podManagementPolicy: Parallel
+  podSecurityContext:
+    fsGroup: 1000
+    runAsUser: 1000
+  podSecurityPolicy:
+    create: false
+    name: ""
+    spec:
+      fsGroup:
+        rule: RunAsAny
+      privileged: true
+      runAsUser:
+        rule: RunAsAny
+      seLinux:
+        rule: RunAsAny
+      supplementalGroups:
+        rule: RunAsAny
+      volumes:
+      - secret
+      - configMap
+      - persistentVolumeClaim
+      - emptyDir
+  priorityClassName: ""
+  protocol: https
+  rbac:
+    automountServiceAccountToken: false
+    create: false
+    serviceAccountAnnotations: {}
+    serviceAccountName: ""
+  readinessProbe:
+    failureThreshold: 3
+    periodSeconds: 5
+    tcpSocket:
+      port: 9200
+    timeoutSeconds: 3
+  replicas: 3
+  resources:
+    limits:
+      memory: 1100Mi
+    requests:
+      cpu: 1000m
+      memory: 100Mi
+  roles:
+  - master
+  - ingest
+  - data
+  - remote_cluster_client
+  schedulerName: ""
+  secretMounts: []
+  securityConfig:
+    actionGroupsSecret: null
+    config:
+      data: {}
+      dataComplete: true
+      securityConfigSecret: ""
+    configSecret: null
+    enabled: true
+    internalUsersSecret: null
+    path: /usr/share/opensearch/config/opensearch-security
+    rolesMappingSecret: null
+    rolesSecret: null
+    tenantsSecret: null
+  securityContext:
+    capabilities:
+      drop:
+      - ALL
+    runAsNonRoot: true
+    runAsUser: 1000
+  service:
+    annotations: {}
+    externalTrafficPolicy: ""
+    headless:
+      annotations: {}
+    httpPortName: http
+    labels: {}
+    labelsHeadless: {}
+    loadBalancerIP: ""
+    loadBalancerSourceRanges: []
+    metricsPortName: metrics
+    nodePort: ""
+    transportPortName: transport
+    type: ClusterIP
+  serviceMonitor:
+    basicAuth:
+      enabled: false
+    enabled: false
+    interval: 10s
+    labels: {}
+    path: /_prometheus/metrics
+    scheme: http
+    tlsConfig: {}
+  sidecarResources: {}
+  singleNode: true
+  startupProbe:
+    failureThreshold: 30
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    tcpSocket:
+      port: 9200
+    timeoutSeconds: 3
+  sysctl:
+    enabled: false
+  sysctlInit:
+    enabled: false
+  sysctlVmMaxMapCount: 262144
+  terminationGracePeriod: 120
+  tolerations: []
+  topologySpreadConstraints: []
+  transportHostPort: ""
+  transportPort: 9300
+  updateStrategy: RollingUpdate
+opentelemetry-collector:
+  additionalLabels: {}
+  affinity: {}
+  alternateConfig: {}
+  annotations: {}
+  autoscaling:
+    behavior: {}
+    enabled: false
+    maxReplicas: 10
+    minReplicas: 1
+    targetCPUUtilizationPercentage: 80
+  clusterRole:
+    annotations: {}
+    clusterRoleBinding:
+      annotations: {}
+      name: ""
+    create: false
+    name: ""
+    rules: []
+  command:
+    extraArgs: []
+    name: ""
+  config:
+    connectors:
+      spanmetrics: {}
+    exporters:
+      debug: {}
+      opensearch:
+        http:
+          endpoint: http://opensearch:9200
+          tls:
+            insecure: true
+        logs_index: otel
+      otlp:
+        endpoint: jaeger-collector:4317
+        tls:
+          insecure: true
+      otlphttp/prometheus:
+        endpoint: http://prometheus:9090/api/v1/otlp
+        tls:
+          insecure: true
+    extensions:
+      health_check:
+        endpoint: ${env:MY_POD_IP}:13133
+    processors:
+      batch: {}
+      memory_limiter:
+        check_interval: 5s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+      resource:
+        attributes:
+        - action: insert
+          from_attribute: k8s.pod.uid
+          key: service.instance.id
+      transform:
+        error_mode: ignore
+        trace_statements:
+        - context: span
+          statements:
+          - replace_pattern(name, "\\?.*", "")
+          - replace_match(name, "GET /api/products/*", "GET /api/products/{productId}")
+    receivers:
+      httpcheck/frontend-proxy:
+        targets:
+        - endpoint: http://frontend-proxy:8080
+      jaeger:
+        protocols:
+          grpc:
+            endpoint: ${env:MY_POD_IP}:14250
+          thrift_compact:
+            endpoint: ${env:MY_POD_IP}:6831
+          thrift_http:
+            endpoint: ${env:MY_POD_IP}:14268
+      otlp:
+        protocols:
+          grpc:
+            endpoint: ${env:MY_POD_IP}:4317
+          http:
+            cors:
+              allowed_origins:
+              - http://*
+              - https://*
+            endpoint: ${env:MY_POD_IP}:4318
+      prometheus:
+        config:
+          scrape_configs:
+          - job_name: opentelemetry-collector
+            scrape_interval: 10s
+            static_configs:
+            - targets:
+              - ${env:MY_POD_IP}:8888
+      redis:
+        collection_interval: 10s
+        endpoint: valkey-cart:6379
+      zipkin:
+        endpoint: ${env:MY_POD_IP}:9411
+    service:
+      extensions:
+      - health_check
+      pipelines:
+        logs:
+          exporters:
+          - opensearch
+          - debug
+          processors:
+          - memory_limiter
+          - resource
+          - batch
+          receivers:
+          - otlp
+        metrics:
+          exporters:
+          - otlphttp/prometheus
+          - debug
+          processors:
+          - memory_limiter
+          - resource
+          - batch
+          receivers:
+          - httpcheck/frontend-proxy
+          - redis
+          - otlp
+          - spanmetrics
+        traces:
+          exporters:
+          - otlp
+          - debug
+          - spanmetrics
+          processors:
+          - memory_limiter
+          - resource
+          - transform
+          - batch
+          receivers:
+          - otlp
+          - jaeger
+          - zipkin
+      telemetry:
+        metrics:
+          address: ${env:MY_POD_IP}:8888
+          level: detailed
+          readers:
+          - periodic:
+              exporter:
+                otlp:
+                  endpoint: otel-collector:4318
+                  protocol: grpc
+              interval: 10000
+              timeout: 5000
+  configMap:
+    create: true
+    existingName: ""
+  dnsConfig: {}
+  dnsPolicy: ""
+  enabled: true
+  extraContainers: []
+  extraEnvs: []
+  extraEnvsFrom: []
+  extraManifests: []
+  extraVolumeMounts: []
+  extraVolumes: []
+  fullnameOverride: otel-collector
+  global: {}
+  hostAliases: []
+  hostNetwork: false
+  image:
+    digest: ""
+    pullPolicy: IfNotPresent
+    repository: otel/opentelemetry-collector-contrib
+    tag: ""
+  imagePullSecrets: []
+  ingress:
+    additionalIngresses: []
+    enabled: false
+  initContainers: []
+  lifecycleHooks: {}
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 13133
+  mode: deployment
+  nameOverride: ""
+  namespaceOverride: ""
+  networkPolicy:
+    allowIngressFrom: []
+    annotations: {}
+    egressRules: []
+    enabled: false
+    extraIngressRules: []
+  nodeSelector: {}
+  podAnnotations:
+    opentelemetry_community_demo: "true"
+    prometheus.io/scrape: "true"
+  podDisruptionBudget:
+    enabled: false
+  podLabels: {}
+  podMonitor:
+    enabled: false
+    extraLabels: {}
+    metricsEndpoints:
+    - port: metrics
+  podSecurityContext: {}
+  ports:
+    jaeger-compact:
+      containerPort: 6831
+      enabled: true
+      hostPort: 6831
+      protocol: UDP
+      servicePort: 6831
+    jaeger-grpc:
+      containerPort: 14250
+      enabled: true
+      hostPort: 14250
+      protocol: TCP
+      servicePort: 14250
+    jaeger-thrift:
+      containerPort: 14268
+      enabled: true
+      hostPort: 14268
+      protocol: TCP
+      servicePort: 14268
+    metrics:
+      containerPort: 8888
+      enabled: true
+      protocol: TCP
+      servicePort: 8888
+    otlp:
+      appProtocol: grpc
+      containerPort: 4317
+      enabled: true
+      hostPort: 4317
+      protocol: TCP
+      servicePort: 4317
+    otlp-http:
+      containerPort: 4318
+      enabled: true
+      hostPort: 4318
+      protocol: TCP
+      servicePort: 4318
+    zipkin:
+      containerPort: 9411
+      enabled: true
+      hostPort: 9411
+      protocol: TCP
+      servicePort: 9411
+  presets:
+    clusterMetrics:
+      enabled: false
+    hostMetrics:
+      enabled: false
+    kubeletMetrics:
+      enabled: false
+    kubernetesAttributes:
+      enabled: true
+      extractAllPodAnnotations: false
+      extractAllPodLabels: false
+    kubernetesEvents:
+      enabled: false
+    logsCollection:
+      enabled: false
+      includeCollectorLogs: false
+      maxRecombineLogSize: 102400
+      storeCheckpoints: false
+  priorityClassName: ""
+  prometheusRule:
+    defaultRules:
+      enabled: false
+    enabled: false
+    extraLabels: {}
+    groups: []
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 13133
+  replicaCount: 1
+  resources:
+    limits:
+      memory: 200Mi
+  revisionHistoryLimit: 10
+  rollout:
+    rollingUpdate: {}
+    strategy: RollingUpdate
+  securityContext: {}
+  service:
+    annotations: {}
+    type: ClusterIP
+  serviceAccount:
+    annotations: {}
+    create: true
+    name: ""
+  serviceMonitor:
+    enabled: false
+    extraLabels: {}
+    metricRelabelings: []
+    metricsEndpoints:
+    - port: metrics
+    relabelings: []
+  shareProcessNamespace: false
+  startupProbe: {}
+  statefulset:
+    persistentVolumeClaimRetentionPolicy:
+      enabled: false
+      whenDeleted: Retain
+      whenScaled: Retain
+    podManagementPolicy: Parallel
+    volumeClaimTemplates: []
+  tolerations: []
+  topologySpreadConstraints: []
+  useGOMEMLIMIT: true
+prometheus:
+  alertRelabelConfigs: {}
+  alertmanager:
+    enabled: false
+    persistence:
+      size: 2Gi
+    podSecurityContext:
+      fsGroup: 65534
+      runAsGroup: 65534
+      runAsNonRoot: true
+      runAsUser: 65534
+  commonMetaLabels: {}
+  configmapReload:
+    env: []
+    prometheus:
+      containerPort: 8080
+      containerPortName: metrics
+      containerSecurityContext: {}
+      enabled: false
+      extraArgs: {}
+      extraConfigmapMounts: []
+      extraVolumeDirs: []
+      extraVolumeMounts: []
+      image:
+        digest: ""
+        pullPolicy: IfNotPresent
+        repository: quay.io/prometheus-operator/prometheus-config-reloader
+        tag: v0.79.2
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: metrics
+          scheme: HTTP
+        initialDelaySeconds: 2
+        periodSeconds: 10
+      name: configmap-reload
+      readinessProbe:
+        httpGet:
+          path: /healthz
+          port: metrics
+          scheme: HTTP
+        periodSeconds: 10
+      resources: {}
+      startupProbe:
+        enabled: false
+        httpGet:
+          path: /healthz
+          port: metrics
+          scheme: HTTP
+        periodSeconds: 10
+    reloadUrl: ""
+  enabled: true
+  extraManifests: []
+  extraScrapeConfigs: ""
+  forceNamespace: ""
+  global: {}
+  imagePullSecrets: []
+  kube-state-metrics:
+    enabled: false
+  networkPolicy:
+    enabled: false
+  podSecurityPolicy:
+    enabled: false
+  prometheus-node-exporter:
+    containerSecurityContext:
+      allowPrivilegeEscalation: false
+    enabled: false
+    rbac:
+      pspEnabled: false
+  prometheus-pushgateway:
+    enabled: false
+    serviceAnnotations:
+      prometheus.io/probe: pushgateway
+  rbac:
+    create: true
+  ruleFiles: {}
+  scrapeConfigFiles: []
+  server:
+    affinity: {}
+    alertmanagers: []
+    baseURL: ""
+    clusterRoleNameOverride: ""
+    command: []
+    configMapAnnotations: {}
+    configMapOverrideName: ""
+    configPath: /etc/config/prometheus.yml
+    containerSecurityContext: {}
+    defaultFlagsOverride: []
+    deploymentAnnotations: {}
+    dnsConfig: {}
+    dnsPolicy: ClusterFirst
+    emptyDir:
+      sizeLimit: ""
+    enableServiceLinks: true
+    env: []
+    exemplars: {}
+    extraArgs: {}
+    extraConfigmapLabels: {}
+    extraConfigmapMounts: []
+    extraFlags:
+    - enable-feature=exemplar-storage
+    - web.enable-otlp-receiver
+    extraHostPathMounts: []
+    extraInitContainers: []
+    extraSecretMounts: []
+    extraVolumeMounts: []
+    extraVolumes: []
+    fullnameOverride: prometheus
+    global:
+      evaluation_interval: 30s
+      scrape_interval: 5s
+      scrape_timeout: 3s
+    hostAliases: []
+    hostNetwork: false
+    image:
+      digest: ""
+      pullPolicy: IfNotPresent
+      repository: quay.io/prometheus/prometheus
+      tag: ""
+    ingress:
+      annotations: {}
+      enabled: false
+      extraLabels: {}
+      extraPaths: []
+      hosts: []
+      path: /
+      pathType: Prefix
+      tls: []
+    livenessProbeFailureThreshold: 3
+    livenessProbeInitialDelay: 30
+    livenessProbePeriodSeconds: 15
+    livenessProbeSuccessThreshold: 1
+    livenessProbeTimeout: 10
+    name: server
+    nodeSelector: {}
+    otlp: {}
+    persistentVolume:
+      accessModes:
+      - ReadWriteOnce
+      annotations: {}
+      enabled: false
+      existingClaim: ""
+      labels: {}
+      mountPath: /data
+      size: 8Gi
+      statefulSetNameOverride: ""
+      subPath: ""
+    podAnnotations: {}
+    podAntiAffinity: ""
+    podAntiAffinityTopologyKey: kubernetes.io/hostname
+    podDisruptionBudget:
+      enabled: false
+    podLabels: {}
+    podSecurityPolicy:
+      annotations: {}
+    portName: ""
+    prefixURL: ""
+    priorityClassName: ""
+    probeHeaders: []
+    probeScheme: HTTP
+    prometheus.yml:
+      otlp:
+        keep_identifying_resource_attributes: true
+        promote_resource_attributes:
+        - service.instance.id
+        - service.name
+        - service.namespace
+        - cloud.availability_zone
+        - cloud.region
+        - container.name
+        - deployment.environment.name
+        - k8s.cluster.name
+        - k8s.container.name
+        - k8s.cronjob.name
+        - k8s.daemonset.name
+        - k8s.deployment.name
+        - k8s.job.name
+        - k8s.namespace.name
+        - k8s.pod.name
+        - k8s.replicaset.name
+        - k8s.statefulset.name
+    readinessProbeFailureThreshold: 3
+    readinessProbeInitialDelay: 30
+    readinessProbePeriodSeconds: 5
+    readinessProbeSuccessThreshold: 1
+    readinessProbeTimeout: 4
+    releaseNamespace: false
+    remoteRead: []
+    remoteWrite: []
+    replicaCount: 1
+    resources:
+      limits:
+        memory: 300Mi
+    retention: 15d
+    retentionSize: ""
+    revisionHistoryLimit: 10
+    securityContext:
+      fsGroup: 65534
+      runAsGroup: 65534
+      runAsNonRoot: true
+      runAsUser: 65534
+    service:
+      additionalPorts: []
+      annotations: {}
+      clusterIP: ""
+      enabled: true
+      externalIPs: []
+      externalTrafficPolicy: ""
+      gRPC:
+        enabled: false
+        servicePort: 10901
+      labels: {}
+      loadBalancerIP: ""
+      loadBalancerSourceRanges: []
+      servicePort: 9090
+      sessionAffinity: None
+      statefulsetReplica:
+        enabled: false
+        replica: 0
+      type: ClusterIP
+    sidecarContainers: {}
+    sidecarTemplateValues: {}
+    startupProbe:
+      enabled: false
+      failureThreshold: 30
+      periodSeconds: 5
+      timeoutSeconds: 10
+    statefulSet:
+      annotations: {}
+      enabled: false
+      headless:
+        annotations: {}
+        gRPC:
+          enabled: false
+          servicePort: 10901
+        labels: {}
+        servicePort: 80
+      labels: {}
+      podManagementPolicy: OrderedReady
+      pvcDeleteOnStsDelete: false
+      pvcDeleteOnStsScale: false
+    storagePath: ""
+    strategy:
+      type: Recreate
+    tcpSocketProbeEnabled: false
+    terminationGracePeriodSeconds: 300
+    tolerations: []
+    topologySpreadConstraints: []
+    tsdb:
+      out_of_order_time_window: 30m
+    verticalAutoscaler:
+      enabled: false
+  serverFiles:
+    alerting_rules.yml: {}
+    alerts: {}
+    prometheus.yml:
+      rule_files:
+      - /etc/config/recording_rules.yml
+      - /etc/config/alerting_rules.yml
+      - /etc/config/rules
+      - /etc/config/alerts
+      scrape_configs:
+      - job_name: prometheus
+        static_configs:
+        - targets:
+          - localhost:9090
+      - bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        job_name: kubernetes-apiservers
+        kubernetes_sd_configs:
+        - role: endpoints
+        relabel_configs:
+        - action: keep
+          regex: default;kubernetes;https
+          source_labels:
+          - __meta_kubernetes_namespace
+          - __meta_kubernetes_service_name
+          - __meta_kubernetes_endpoint_port_name
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      - bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        job_name: kubernetes-nodes
+        kubernetes_sd_configs:
+        - role: node
+        relabel_configs:
+        - action: labelmap
+          regex: __meta_kubernetes_node_label_(.+)
+        - replacement: kubernetes.default.svc:443
+          target_label: __address__
+        - regex: (.+)
+          replacement: /api/v1/nodes/$1/proxy/metrics
+          source_labels:
+          - __meta_kubernetes_node_name
+          target_label: __metrics_path__
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      - bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        job_name: kubernetes-nodes-cadvisor
+        kubernetes_sd_configs:
+        - role: node
+        relabel_configs:
+        - action: labelmap
+          regex: __meta_kubernetes_node_label_(.+)
+        - replacement: kubernetes.default.svc:443
+          target_label: __address__
+        - regex: (.+)
+          replacement: /api/v1/nodes/$1/proxy/metrics/cadvisor
+          source_labels:
+          - __meta_kubernetes_node_name
+          target_label: __metrics_path__
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      - honor_labels: true
+        job_name: kubernetes-service-endpoints
+        kubernetes_sd_configs:
+        - role: endpoints
+        relabel_configs:
+        - action: keep
+          regex: true
+          source_labels:
+          - __meta_kubernetes_service_annotation_prometheus_io_scrape
+        - action: drop
+          regex: true
+          source_labels:
+          - __meta_kubernetes_service_annotation_prometheus_io_scrape_slow
+        - action: replace
+          regex: (https?)
+          source_labels:
+          - __meta_kubernetes_service_annotation_prometheus_io_scheme
+          target_label: __scheme__
+        - action: replace
+          regex: (.+)
+          source_labels:
+          - __meta_kubernetes_service_annotation_prometheus_io_path
+          target_label: __metrics_path__
+        - action: replace
+          regex: (.+?)(?::\d+)?;(\d+)
+          replacement: $1:$2
+          source_labels:
+          - __address__
+          - __meta_kubernetes_service_annotation_prometheus_io_port
+          target_label: __address__
+        - action: labelmap
+          regex: __meta_kubernetes_service_annotation_prometheus_io_param_(.+)
+          replacement: __param_$1
+        - action: labelmap
+          regex: __meta_kubernetes_service_label_(.+)
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_namespace
+          target_label: namespace
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_service_name
+          target_label: service
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_node_name
+          target_label: node
+      - honor_labels: true
+        job_name: kubernetes-service-endpoints-slow
+        kubernetes_sd_configs:
+        - role: endpoints
+        relabel_configs:
+        - action: keep
+          regex: true
+          source_labels:
+          - __meta_kubernetes_service_annotation_prometheus_io_scrape_slow
+        - action: replace
+          regex: (https?)
+          source_labels:
+          - __meta_kubernetes_service_annotation_prometheus_io_scheme
+          target_label: __scheme__
+        - action: replace
+          regex: (.+)
+          source_labels:
+          - __meta_kubernetes_service_annotation_prometheus_io_path
+          target_label: __metrics_path__
+        - action: replace
+          regex: (.+?)(?::\d+)?;(\d+)
+          replacement: $1:$2
+          source_labels:
+          - __address__
+          - __meta_kubernetes_service_annotation_prometheus_io_port
+          target_label: __address__
+        - action: labelmap
+          regex: __meta_kubernetes_service_annotation_prometheus_io_param_(.+)
+          replacement: __param_$1
+        - action: labelmap
+          regex: __meta_kubernetes_service_label_(.+)
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_namespace
+          target_label: namespace
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_service_name
+          target_label: service
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_node_name
+          target_label: node
+        scrape_interval: 5m
+        scrape_timeout: 30s
+      - honor_labels: true
+        job_name: prometheus-pushgateway
+        kubernetes_sd_configs:
+        - role: service
+        relabel_configs:
+        - action: keep
+          regex: pushgateway
+          source_labels:
+          - __meta_kubernetes_service_annotation_prometheus_io_probe
+      - honor_labels: true
+        job_name: kubernetes-services
+        kubernetes_sd_configs:
+        - role: service
+        metrics_path: /probe
+        params:
+          module:
+          - http_2xx
+        relabel_configs:
+        - action: keep
+          regex: true
+          source_labels:
+          - __meta_kubernetes_service_annotation_prometheus_io_probe
+        - source_labels:
+          - __address__
+          target_label: __param_target
+        - replacement: blackbox
+          target_label: __address__
+        - source_labels:
+          - __param_target
+          target_label: instance
+        - action: labelmap
+          regex: __meta_kubernetes_service_label_(.+)
+        - source_labels:
+          - __meta_kubernetes_namespace
+          target_label: namespace
+        - source_labels:
+          - __meta_kubernetes_service_name
+          target_label: service
+      - honor_labels: true
+        job_name: kubernetes-pods
+        kubernetes_sd_configs:
+        - role: pod
+        relabel_configs:
+        - action: keep
+          regex: true
+          source_labels:
+          - __meta_kubernetes_pod_annotation_prometheus_io_scrape
+        - action: drop
+          regex: true
+          source_labels:
+          - __meta_kubernetes_pod_annotation_prometheus_io_scrape_slow
+        - action: replace
+          regex: (https?)
+          source_labels:
+          - __meta_kubernetes_pod_annotation_prometheus_io_scheme
+          target_label: __scheme__
+        - action: replace
+          regex: (.+)
+          source_labels:
+          - __meta_kubernetes_pod_annotation_prometheus_io_path
+          target_label: __metrics_path__
+        - action: replace
+          regex: (\d+);(([A-Fa-f0-9]{1,4}::?){1,7}[A-Fa-f0-9]{1,4})
+          replacement: '[$2]:$1'
+          source_labels:
+          - __meta_kubernetes_pod_annotation_prometheus_io_port
+          - __meta_kubernetes_pod_ip
+          target_label: __address__
+        - action: replace
+          regex: (\d+);((([0-9]+?)(\.|$)){4})
+          replacement: $2:$1
+          source_labels:
+          - __meta_kubernetes_pod_annotation_prometheus_io_port
+          - __meta_kubernetes_pod_ip
+          target_label: __address__
+        - action: labelmap
+          regex: __meta_kubernetes_pod_annotation_prometheus_io_param_(.+)
+          replacement: __param_$1
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_namespace
+          target_label: namespace
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_name
+          target_label: pod
+        - action: drop
+          regex: Pending|Succeeded|Failed|Completed
+          source_labels:
+          - __meta_kubernetes_pod_phase
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_node_name
+          target_label: node
+      - honor_labels: true
+        job_name: kubernetes-pods-slow
+        kubernetes_sd_configs:
+        - role: pod
+        relabel_configs:
+        - action: keep
+          regex: true
+          source_labels:
+          - __meta_kubernetes_pod_annotation_prometheus_io_scrape_slow
+        - action: replace
+          regex: (https?)
+          source_labels:
+          - __meta_kubernetes_pod_annotation_prometheus_io_scheme
+          target_label: __scheme__
+        - action: replace
+          regex: (.+)
+          source_labels:
+          - __meta_kubernetes_pod_annotation_prometheus_io_path
+          target_label: __metrics_path__
+        - action: replace
+          regex: (\d+);(([A-Fa-f0-9]{1,4}::?){1,7}[A-Fa-f0-9]{1,4})
+          replacement: '[$2]:$1'
+          source_labels:
+          - __meta_kubernetes_pod_annotation_prometheus_io_port
+          - __meta_kubernetes_pod_ip
+          target_label: __address__
+        - action: replace
+          regex: (\d+);((([0-9]+?)(\.|$)){4})
+          replacement: $2:$1
+          source_labels:
+          - __meta_kubernetes_pod_annotation_prometheus_io_port
+          - __meta_kubernetes_pod_ip
+          target_label: __address__
+        - action: labelmap
+          regex: __meta_kubernetes_pod_annotation_prometheus_io_param_(.+)
+          replacement: __param_$1
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_namespace
+          target_label: namespace
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_name
+          target_label: pod
+        - action: drop
+          regex: Pending|Succeeded|Failed|Completed
+          source_labels:
+          - __meta_kubernetes_pod_phase
+        - action: replace
+          source_labels:
+          - __meta_kubernetes_pod_node_name
+          target_label: node
+        scrape_interval: 5m
+        scrape_timeout: 30s
+    recording_rules.yml: {}
+    rules: {}
+  serviceAccounts:
+    server:
+      annotations: {}
+      create: true
+      name: ""
+serviceAccount:
+  annotations: {}
+  create: true
+  name: ""

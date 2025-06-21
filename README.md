@@ -47,3 +47,13 @@ kubectl proxy --address='0.0.0.0' --accept-hosts='^*$'
 
 You will be able to access the dashboard at:
 http://REMOTE-HOST:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/#/workloads?namespace=default
+
+### Metrics server
+You can enable basic kubernetes metrics by running `minikube addons enable metrics-server`
+
+## Configuration Changes
+
+* Updated the memory for the "ad" deployment from 300Mi to 400Mi
+* Updated the memory for the "fraud-detection" deployment from 300Mi to 600Mi
+* Updated the memory for the "prometheus-server" container in the "prometheus" deployment from 300Mi to 500Mi
+* Updated the memory for the kafka deployment from 600Mi to 800Mi

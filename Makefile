@@ -1,17 +1,19 @@
 SHELL=/bin/bash
 
 OTEL_PORT=8080
+K8S_MEMORY=10g
 
 help:
 	@echo general targets are:    help clean
 	@echo minikube targets are:   mk-start mk-dashboard mk-proxy mk-tunnel mk-clean
 	@echo otel targets are:       otel-setup otel-forward
+	@echo prometheus targets are: prom-forward
 	@echo repo targets are:       repo
 
 
 
 mk-start:
-	minikube start --driver=docker --alsologtostderr
+	minikube start --driver=docker --alsologtostderr --memory=$(K8S_MEMORY)
 
 mk-dashboard:
 	minikube dashboard
@@ -33,6 +35,14 @@ otel-setup:
 otel-forward:
 	kubectl --namespace default port-forward --address='0.0.0.0' svc/frontend-proxy 8080:8080
 
+prom-kube-setup:
+	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+	helm repo update
+	helm install kube-state-metrics prometheus-community/kube-state-metrics --namespace kube-system --create-namespace
+
+# prometheus is on port 9090 in the prometheus service
+prom-forward:
+	kubectl --namespace default port-forward --address='0.0.0.0' svc/prometheus 9090:9090
 
 repo: # local helm repository
 	mkdir -p repo
@@ -40,5 +50,5 @@ repo: # local helm repository
 clean: mk-clean
 	rm -rf ./repo
 
-.PHONY: help clean mk-start mk-dashboard mk-tunnel mk-clean otel-setup otel-forward
+.PHONY: help clean mk-start mk-dashboard mk-tunnel mk-clean otel-setup otel-forward prom-forward
 
