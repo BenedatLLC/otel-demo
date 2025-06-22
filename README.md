@@ -4,11 +4,6 @@ in Minikube.
 
 ## Installation
 
-### Prerequistes
-You need to have [direnv](https://direnv.net/) installed. On Ubuntu Linux, this can be
-installed via:
-
-
 ### Installation on Debian/Ubuntu/PopOS Linux
 You need to have [direnv](https://direnv.net/) installed. If you do not already have it,
 you can install the Debian package:
