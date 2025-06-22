@@ -1,7 +1,6 @@
-# Root cause analysis examples
+# Root cause analysis examples: Crash Loop due to OOM
 
-## 1. Fraud detection OOM
-### Symptoms
+## Symptoms
 The fraud-detection deployment shows red in the dashboard
 
 Message was:
@@ -59,9 +58,14 @@ Specifically, the last state shows that the pod was terminated with reason "Erro
 A search for that exit code indicates it is typically an OOM. It can sometimes be caused by a failed health check.
 
 
-### Resolution
+## Resolution
 1. Updated the memory for the "fraud-detection" container in the "fraud-detection" deployment from 300Mi to 400Mi and restarted
 2. The problem still happened
 3. Increased memory from 400Mi to 600Mi and restarted
 4. Problem fixed!
 
+## Metrics and alerts
+Here's a metric you can use:
+```
+sum by (pod, container) (kube_pod_container_status_waiting_reason{namespace="default", reason="CrashLoopBackOff"})
+```

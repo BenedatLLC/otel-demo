@@ -51,6 +51,27 @@ http://REMOTE-HOST:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kub
 ### Metrics server
 You can enable basic kubernetes metrics by running `minikube addons enable metrics-server`
 
+### Adding kube-state-metrics
+First install it:
+```sh
+helm install kube-state-metrics prometheus-community/kube-state-metrics   --namespace kube-system   --create-namespace
+```
+
+Get the current otel config and update the prometheus scraper config:
+```sh
+helm get values my-otel-demo -a > otel-current-values.yaml
+cp otel-current-values.yaml otel-new-values.yaml
+vi otel-new-values.yaml # edit the file, removing all the unchanged configuration and adding the new scraper config
+helm upgrade my-otel-demo open-telemetry/opentelemetry-demo --values otel-new-values.yaml
+```
+
+To see the metrics that are being published, forward its port:
+```sh
+kubectl --namespace kube-system port-forward --address='0.0.0.0' svc/kube-state-metrics 8081:8080
+```
+
+Now go to http://HOSTNAME:8081/metrics
+
 ## Configuration Changes
 
 * Updated the memory for the "ad" deployment from 300Mi to 400Mi
