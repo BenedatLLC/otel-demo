@@ -1,5 +1,6 @@
 # otel-demo
-Run the [open telemetry demo app](https://github.com/open-telemetry/opentelemetry-demo) in Minikube
+This repo contains instructions and scripts to run the [open telemetry demo app](https://github.com/open-telemetry/opentelemetry-demo)
+in Minikube.
 
 ## Installation
 
@@ -73,8 +74,11 @@ kubectl --namespace kube-system port-forward --address='0.0.0.0' svc/kube-state-
 Now go to http://HOSTNAME:8081/metrics
 
 ## Configuration Changes
-
+### Address OOM issues
 * Updated the memory for the "ad" deployment from 300Mi to 400Mi
 * Updated the memory for the "fraud-detection" deployment from 300Mi to 600Mi
 * Updated the memory for the "prometheus-server" container in the "prometheus" deployment from 300Mi to 500Mi
 * Updated the memory for the kafka deployment from 600Mi to 800Mi
+
+See [RCA/CrashLoop.md](RCA/CrashLoop.md) for details.
+
