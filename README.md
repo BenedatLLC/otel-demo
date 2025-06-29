@@ -77,3 +77,25 @@ Now go to http://HOSTNAME:8081/metrics
 
 See [RCA/CrashLoop.md](RCA/CrashLoop.md) for details.
 
+## Remote access to minikube
+
+I found it useful to run `kubectl` on my laptop to access minikube on a remote host. To do this, I had to do the following:
+
+1. You need the kubnetes config file on your local machine. The file can be usually be found at `~/.kube/config` on the
+   remote host. You can `scp` it over to whereever you want to keep it on your laptop.
+2. You need local copies of the certificates created by minikube and referenced in the config file. These will
+   include the certificate authority (`ca.crt`), the client certificate (`client.crt`), and the client key (`client.key).
+   Copy them to your laptop and then update the paths in the kubernetes confile file to point to the correct local locations.
+3. The API server entry ("server" in the config file) is likely pointing to an IP on the host's private network. You can
+   either run a proxy on the host or run an ssh tunnel from the client. Here's how to run a client-side tunnel:
+   ```sh
+   HOST_PRIVATE_IP="..." # you can get this via `minikube ip`
+   HOST_PUBLIC_IP="..." # public ip or hostname for the remote host
+   ssh -L 8443:$(HOST_PRIVATE_IP):8443 $(HOST_PUBLIC_IP) -N
+   ```
+4. You need to adjust the `server` entry in the config file. If you did client-side tunneling, this should point to 
+   https://localhost:8443.
+   ```
+5. On your labtop, set the environment variable `KUBECONFIG` to point to your new kubernetes config file.
+6. As a sanity test, you can run something like `kubectl get pods`
+

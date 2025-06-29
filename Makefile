@@ -13,7 +13,7 @@ help:
 
 
 mk-start:
-	minikube start --driver=docker --alsologtostderr --memory=$(K8S_MEMORY)
+	minikube start --driver=docker --alsologtostderr --memory=$(K8S_MEMORY) --listen-address='0.0.0.0' --apiserver-ips=192.168.1.191
 
 mk-dashboard:
 	minikube dashboard
@@ -21,8 +21,9 @@ mk-dashboard:
 mk-proxy:
 	kubectl proxy --address='0.0.0.0' --accept-hosts='^*$$'
 
+# allow host access to LoadBalancer services running in the minikube
 mk-tunnel:
-	minikube tunnel
+	minikube tunnel --bind-address='*'
 
 mk-clean:
 	-minikube stop
