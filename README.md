@@ -95,7 +95,6 @@ I found it useful to run `kubectl` on my laptop to access minikube on a remote h
    ```
 4. You need to adjust the `server` entry in the config file. If you did client-side tunneling, this should point to 
    https://localhost:8443.
-   ```
 5. On your labtop, set the environment variable `KUBECONFIG` to point to your new kubernetes config file.
 6. As a sanity test, you can run something like `kubectl get pods`
 
