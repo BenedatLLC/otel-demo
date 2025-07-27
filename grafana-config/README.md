@@ -19,11 +19,14 @@ This query gets the number of containers in the CrashLoopBackOff state and group
 Here's the relevant configuration pages in the Grafana UI.
 
 ### Slack contact point
-![Contact point configuration](contact-point-configuration.png)
+
+![Contact point configuration](pictures/contact-point-configuration.png)
 
 ### Dashboard
-![Dashboard configuration](dashboard-configuration.png)
+
+![Dashboard configuration](pictures/dashboard-configuration.png)
 
 ### Alert
-![Alert configuration](alert-configuration)
+
+![Alert configuration](pictures/alert-configuration)
 
