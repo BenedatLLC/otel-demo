@@ -28,5 +28,5 @@ Here's the relevant configuration pages in the Grafana UI.
 
 ### Alert
 
-![Alert configuration](pictures/alert-configuration)
+![Alert configuration](pictures/alert-configuration.png)
 
