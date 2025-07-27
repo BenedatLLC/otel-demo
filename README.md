@@ -41,11 +41,26 @@ If you are running minikube on a remote machine, keep the following running to h
 kubectl proxy --address='0.0.0.0' --accept-hosts='^*$'
 ```
 
+This proxy is for the dashboard.
+
 You will be able to access the dashboard at:
 http://REMOTE-HOST:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/#/workloads?namespace=default
 
 ### Metrics server
 You can enable basic kubernetes metrics by running `minikube addons enable metrics-server`
+
+### Starting the otel demo app
+```sh
+make otel-setup
+```
+
+Use the dashboard to follow the progress of the startup. When everything has started, run:
+```sh
+make otel-forward
+```
+
+You should now see the main app at http://HOSTNAME:8080. This is also the proxy for the other installed
+utilties, like Grafana (on http://HOSTNAME:8080/grafana).
 
 ### Adding kube-state-metrics
 First install it:
@@ -66,16 +81,13 @@ To see the metrics that are being published, forward its port:
 kubectl --namespace kube-system port-forward --address='0.0.0.0' svc/kube-state-metrics 8081:8080
 ```
 
+Search for the metric `kube_pod_container_status_waiting_reason` in the text.
+
 Now go to http://HOSTNAME:8081/metrics
 
-## Configuration Changes
-### Address OOM issues
-* Updated the memory for the "ad" deployment from 300Mi to 400Mi
-* Updated the memory for the "fraud-detection" deployment from 300Mi to 600Mi
-* Updated the memory for the "prometheus-server" container in the "prometheus" deployment from 300Mi to 500Mi
-* Updated the memory for the kafka deployment from 600Mi to 800Mi
-
-See [RCA/CrashLoop.md](RCA/CrashLoop.md) for details.
+### Grafana alert configuration
+See [grafana-config/README.md](grafana-config/README.md) for details on configuring contact points, dashboards,
+and alert rules.
 
 ## Remote access to minikube
 
@@ -98,3 +110,11 @@ I found it useful to run `kubectl` on my laptop to access minikube on a remote h
 5. On your labtop, set the environment variable `KUBECONFIG` to point to your new kubernetes config file.
 6. As a sanity test, you can run something like `kubectl get pods`
 
+## Configuration Changes
+### Address OOM issues
+* Updated the memory for the "ad" deployment from 300Mi to 400Mi
+* Updated the memory for the "fraud-detection" deployment from 300Mi to 600Mi
+* Updated the memory for the "prometheus-server" container in the "prometheus" deployment from 300Mi to 500Mi
+* Updated the memory for the kafka deployment from 600Mi to 800Mi
+
+See [RCA/CrashLoop.md](RCA/CrashLoop.md) for details.

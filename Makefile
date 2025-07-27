@@ -5,7 +5,7 @@ K8S_MEMORY=10g
 
 help:
 	@echo general targets are:    help clean
-	@echo minikube targets are:   mk-start mk-dashboard mk-proxy mk-tunnel mk-clean
+	@echo minikube targets are:   mk-start mk-dashboard mk-dashboard-remote mk-proxy mk-tunnel mk-clean
 	@echo otel targets are:       otel-setup otel-forward
 	@echo prometheus targets are: prom-forward
 	@echo repo targets are:       repo
@@ -17,6 +17,10 @@ mk-start:
 
 mk-dashboard:
 	minikube dashboard
+
+# Run the dashboard without starting a browser
+mk-dashboard-remote:
+	minikube dashboard --url
 
 mk-proxy:
 	kubectl proxy --address='0.0.0.0' --accept-hosts='^*$$'
@@ -51,5 +55,5 @@ repo: # local helm repository
 clean: mk-clean
 	rm -rf ./repo
 
-.PHONY: help clean mk-start mk-dashboard mk-tunnel mk-clean otel-setup otel-forward prom-forward
+.PHONY: help clean mk-start mk-dashboard mk-dashboard-remote mk-tunnel mk-clean otel-setup otel-forward prom-forward
 
