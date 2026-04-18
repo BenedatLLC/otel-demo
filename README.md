@@ -96,7 +96,7 @@ I found it useful to run `kubectl` on my laptop to access minikube on a remote h
 1. You need the kubnetes config file on your local machine. The file can be usually be found at `~/.kube/config` on the
    remote host. You can `scp` it over to whereever you want to keep it on your laptop.
 2. You need local copies of the certificates created by minikube and referenced in the config file. These will
-   include the certificate authority (`ca.crt`), the client certificate (`client.crt`), and the client key (`client.key).
+   include the certificate authority (`ca.crt`), the client certificate (`client.crt`), and the client key (`client.key`).
    Copy them to your laptop and then update the paths in the kubernetes confile file to point to the correct local locations.
 3. The API server entry ("server" in the config file) is likely pointing to an IP on the host's private network. You can
    either run a proxy on the host or run an ssh tunnel from the client. Here's how to run a client-side tunnel:
