@@ -33,61 +33,162 @@ Now, copy the `helm` executable to `~/bin/helm`.
 Download and install the `kubectl` executable:
 https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/#install-kubectl-binary-with-curl-on-linux
 
-Now, run `minikube start`
+### Configure the environment
+Copy the envrc template and adjust it for your host, then let direnv load it:
 
-### Remote proxy
-If you are running minikube on a remote machine, keep the following running to have a remote proxy:
 ```sh
-kubectl proxy --address='0.0.0.0' --accept-hosts='^*$'
+cp envrc.template .envrc
+# edit .envrc and set APISERVER_IP to the LAN IP of this host
+#   (you can get a candidate with: hostname -I | awk '{print $1}')
+direnv allow
 ```
 
-This proxy is for the dashboard.
+`.envrc` sets two things:
+* `MINIKUBE_HOME=$PWD` so minikube state lives in `./.minikube/` (repo-local) instead of
+  `~/.minikube`.
+* `APISERVER_IP` — the LAN IP baked into the minikube apiserver cert via
+  `--apiserver-ips=...`, so a remote `kubectl` (e.g. from a laptop on the same network)
+  can connect without cert errors. The `mk-start` Makefile target reads this env var.
 
-You will be able to access the dashboard at:
-http://REMOTE-HOST:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/#/workloads?namespace=default
+Now run `make mk-start` (or `minikube start` with the appropriate flags).
 
 ### Metrics server
 You can enable basic kubernetes metrics by running `minikube addons enable metrics-server`
 
+### Accessing the Kubernetes dashboard
+How you reach the dashboard depends on where your browser is:
+
+**Browser on the same host as minikube** — one command:
+```sh
+make mk-dashboard    # runs `minikube dashboard`; enables the addon and opens a browser
+```
+
+**Browser on a different machine (the typical remote setup)** — use the `kubectl` API proxy.
+Leave it running in its own shell:
+```sh
+make mk-proxy        # runs `kubectl proxy --address=0.0.0.0` on port 8001
+```
+
+Then from any machine on the LAN:
+```
+http://REMOTE-HOST:8001/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/#/workloads?namespace=default
+```
+
+The dashboard addon must be enabled at least once. If you've never run `make mk-dashboard`,
+run `make mk-dashboard-remote` once (it enables the addon and prints the local URL without
+opening a browser) — you can ignore the URL it prints; after that the `mk-proxy` URL above
+will work.
+
 ### Starting the otel demo app
+Install the chart:
 ```sh
-make otel-setup
+make otel-setup      # helm install my-otel-demo open-telemetry/opentelemetry-demo
 ```
 
-Use the dashboard to follow the progress of the startup. When everything has started, run:
+Watch the rollout in the Kubernetes dashboard (see previous section). Once all pods are
+Running, expose the demo's frontend-proxy on port 8080:
 ```sh
-make otel-forward
+make otel-forward    # kubectl port-forward svc/frontend-proxy 8080:8080
 ```
 
-You should now see the main app at http://HOSTNAME:8080. This is also the proxy for the other installed
-utilties, like Grafana (on http://HOSTNAME:8080/grafana).
+Leave this running. The frontend-proxy fronts the demo app *and* most of the built-in
+observability UIs, all on port 8080:
+
+| URL | What |
+|---|---|
+| `http://HOSTNAME:8080/` | Demo app (astronomy shop) |
+| `http://HOSTNAME:8080/grafana` | Grafana |
+| `http://HOSTNAME:8080/jaeger/ui/search` | Jaeger |
+| `http://HOSTNAME:8080/loadgen/` | Load generator (trailing slash required) |
+| `http://HOSTNAME:8080/feature` | flagd feature-flag UI |
 
 ### Adding kube-state-metrics
-First install it:
+The OpenTelemetry demo's bundled Prometheus does not scrape `kube-state-metrics` out of the
+box, so metrics like `kube_pod_container_status_waiting_reason` (which the CrashLoopBackOff
+alert depends on) are unavailable until we add a scrape job for it. That's what
+`otel-new-values.yaml` in this repo is for.
+
+First install kube-state-metrics (the Makefile target `prom-kube-setup` also adds the
+`prometheus-community` helm repo):
 ```sh
-helm install kube-state-metrics prometheus-community/kube-state-metrics   --namespace kube-system   --create-namespace
+make prom-kube-setup
+# equivalent to:
+#   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#   helm repo update
+#   helm install kube-state-metrics prometheus-community/kube-state-metrics \
+#     --namespace kube-system --create-namespace
 ```
 
-Get the current otel config and update the prometheus scraper config:
+Then apply the scrape config override shipped with this repo (there is no Make target for
+this step yet — it's a one-line `helm upgrade`):
 ```sh
-helm get values my-otel-demo -a > otel-current-values.yaml
-cp otel-current-values.yaml otel-new-values.yaml
-vi otel-new-values.yaml # edit the file, removing all the unchanged configuration and adding the new scraper config
 helm upgrade my-otel-demo open-telemetry/opentelemetry-demo --values otel-new-values.yaml
 ```
 
-To see the metrics that are being published, forward its port:
-```sh
-kubectl --namespace kube-system port-forward --address='0.0.0.0' svc/kube-state-metrics 8081:8080
+#### What `otel-new-values.yaml` contains and why
+
+The file scopes a single Helm values override: `prometheus.serverFiles."prometheus.yml".scrape_configs`.
+The only *new* addition is the `kube-state-metrics` job near the top:
+
+```yaml
+- job_name: kube-state-metrics
+  static_configs:
+  - targets:
+    - kube-state-metrics.kube-system.svc.cluster.local:8080
 ```
 
-Search for the metric `kube_pod_container_status_waiting_reason` in the text.
+Every other scrape job in that file (`prometheus`, `kubernetes-apiservers`, `kubernetes-nodes`,
+`kubernetes-nodes-cadvisor`, `kubernetes-service-endpoints[-slow]`, `prometheus-pushgateway`,
+`kubernetes-services`, `kubernetes-pods[-slow]`) is a verbatim copy of the chart's defaults.
+They have to be preserved because Helm **replaces** the `scrape_configs` list rather than
+merging it — dropping the defaults would kill every other scrape target.
 
-Now go to http://HOSTNAME:8081/metrics
+To regenerate the file if upstream defaults drift, start from the installed release and edit:
+```sh
+helm get values my-otel-demo -a > otel-current-values.yaml
+cp otel-current-values.yaml otel-new-values.yaml
+vi otel-new-values.yaml  # keep only prometheus.serverFiles, add the kube-state-metrics job
+helm upgrade my-otel-demo open-telemetry/opentelemetry-demo --values otel-new-values.yaml
+```
+
+To verify kube-state-metrics is publishing what you expect, forward its port (useful
+mainly for debugging — Prometheus already scrapes it in-cluster):
+```sh
+make ksm-forward     # kubectl port-forward -n kube-system svc/kube-state-metrics 8081:8080
+```
+
+Now go to http://HOSTNAME:8081/metrics and search for `kube_pod_container_status_waiting_reason`.
+
+### Inspecting Prometheus directly
+If you want to run PromQL queries against Prometheus without going through Grafana, expose
+the Prometheus service on port 9090:
+```sh
+make prom-forward    # kubectl port-forward svc/prometheus 9090:9090
+```
+
+Then browse to http://HOSTNAME:9090. This is optional — Grafana (via `otel-forward`) already
+uses this Prometheus as its datasource.
 
 ### Grafana alert configuration
-See [grafana-config/README.md](grafana-config/README.md) for details on configuring contact points, dashboards,
-and alert rules.
+Grafana itself is reached through `otel-forward` (http://HOSTNAME:8080/grafana). See
+[grafana-config/README.md](grafana-config/README.md) for details on configuring contact
+points, dashboards, and alert rules.
+
+## Reference: proxies and forwards
+
+All of these run in the foreground and need their own terminal (or `tmux`/`screen` pane).
+Only `otel-forward` is required for normal use of the demo; the rest are for dashboard
+access or debugging.
+
+| Make target | Command | Host port | What it exposes | When you need it |
+|---|---|---|---|---|
+| `mk-dashboard` | `minikube dashboard` | auto (browser-opened) | Kubernetes dashboard | Local use on the host, GUI browser available |
+| `mk-dashboard-remote` | `minikube dashboard --url` | local 127.0.0.1 only | Prints dashboard URL; enables the addon | Run once to enable the addon; real access comes via `mk-proxy` |
+| `mk-proxy` | `kubectl proxy --address=0.0.0.0` | 8001 | Whole kube API (including dashboard) | Accessing the dashboard from a remote laptop |
+| `mk-tunnel` | `minikube tunnel` | varies | LoadBalancer-type services | Not needed for this demo — it uses ClusterIP services |
+| `otel-forward` | `kubectl port-forward svc/frontend-proxy` | 8080 | Demo app + Grafana + Jaeger + loadgen + flagd | **Always** — this is how you use the demo |
+| `prom-forward` | `kubectl port-forward svc/prometheus` | 9090 | Prometheus UI | Debugging PromQL directly |
+| `ksm-forward` | `kubectl port-forward svc/kube-state-metrics` | 8081 | kube-state-metrics `/metrics` | Debugging ksm scrape output |
 
 ## Remote access to minikube
 
@@ -118,3 +219,21 @@ I found it useful to run `kubectl` on my laptop to access minikube on a remote h
 * Updated the memory for the kafka deployment from 600Mi to 800Mi
 
 See [RCA/CrashLoop.md](RCA/CrashLoop.md) for details.
+
+> **Known gap:** these memory bumps are *not* currently captured in `otel-new-values.yaml` —
+> they were applied ad hoc (e.g. via `kubectl edit`) and will not be reproduced by a fresh
+> `make otel-setup` + `helm upgrade -f otel-new-values.yaml`. Folding them into the values
+> override is on the roadmap below.
+
+## Roadmap
+
+* **Capture the OOM memory bumps as code.** Add `components.<name>.resources.limits/requests`
+  overrides for `ad`, `fraud-detection`, `prometheus-server`, and `kafka` to
+  `otel-new-values.yaml` so a fresh install reproduces the same resource profile.
+* **Automate Grafana configuration.** The Slack contact point, CrashLoopBackOff dashboard, and
+  alert rule in [grafana-config/](grafana-config/) are currently imported manually through the
+  UI. Replace that with either Grafana file-based provisioning (mounted via the Helm
+  `grafana.dashboardProviders` / `grafana.notifiers` values) or a small script that calls the
+  Grafana HTTP API against the running instance.
+* **Parameterize the host IP.** `APISERVER_IP` is now in `.envrc` / `envrc.template`, but the
+  Makefile could auto-detect it (e.g. `hostname -I | awk '{print $1}'`) if desired.

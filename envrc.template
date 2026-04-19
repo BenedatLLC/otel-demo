@@ -1,1 +1,7 @@
 export MINIKUBE_HOME=`pwd`
+
+# LAN IP of the host running minikube. Baked into the apiserver cert via
+# `minikube start --apiserver-ips=...` so that a remote kubectl (e.g. from
+# a laptop on the same network) can connect without cert errors.
+# Set this to the output of `hostname -I | awk '{print $1}'` or equivalent.
+export APISERVER_IP=192.168.1.191
