@@ -127,29 +127,35 @@ helm upgrade my-otel-demo open-telemetry/opentelemetry-demo --values otel-new-va
 
 #### What `otel-new-values.yaml` contains and why
 
-The file scopes a single Helm values override: `prometheus.serverFiles."prometheus.yml".scrape_configs`.
-The only *new* addition is the `kube-state-metrics` job near the top:
+The file contains *only* the `kube-state-metrics` scrape job — no copy of the chart defaults:
 
 ```yaml
-- job_name: kube-state-metrics
-  static_configs:
-  - targets:
-    - kube-state-metrics.kube-system.svc.cluster.local:8080
+prometheus:
+  serverFiles:
+    prometheus.yml:
+      scrape_configs:
+        - job_name: kube-state-metrics
+          static_configs:
+            - targets:
+                - kube-state-metrics.kube-system.svc.cluster.local:8080
 ```
 
-Every other scrape job in that file (`prometheus`, `kubernetes-apiservers`, `kubernetes-nodes`,
-`kubernetes-nodes-cadvisor`, `kubernetes-service-endpoints[-slow]`, `prometheus-pushgateway`,
-`kubernetes-services`, `kubernetes-pods[-slow]`) is a verbatim copy of the chart's defaults.
-They have to be preserved because Helm **replaces** the `scrape_configs` list rather than
-merging it — dropping the defaults would kill every other scrape target.
+**Why only this, and not a full copy of the defaults?** The prometheus subchart's ConfigMap
+template (`charts/prometheus/templates/cm.yaml` in the chart) **concatenates** three sources
+into the rendered `prometheus.yml` scrape list:
 
-To regenerate the file if upstream defaults drift, start from the installed release and edit:
-```sh
-helm get values my-otel-demo -a > otel-current-values.yaml
-cp otel-current-values.yaml otel-new-values.yaml
-vi otel-new-values.yaml  # keep only prometheus.serverFiles, add the kube-state-metrics job
-helm upgrade my-otel-demo open-telemetry/opentelemetry-demo --values otel-new-values.yaml
-```
+1. `prometheus.scrapeConfigs` (a map — this is where the chart's defaults live now, e.g.
+   `kubernetes-nodes`, the `prometheus` self-scrape, etc.)
+2. `prometheus.serverFiles."prometheus.yml".scrape_configs` (the legacy array — this file)
+3. `prometheus.extraScrapeConfigs` (a string — not used here)
+
+So anything you put in `serverFiles."prometheus.yml".scrape_configs` is **appended on top of**
+the chart defaults, not used in place of them. An earlier version of this file carried a full
+copy of the defaults (from `helm get values`), which caused two `job_name: prometheus` entries
+in the rendered config and broke Prometheus startup with
+`found multiple scrape configs with job name "prometheus"`. Keep this file minimal: only add
+jobs the chart doesn't already emit, and pick a job name that doesn't collide with a key in
+`prometheus.scrapeConfigs`.
 
 To verify kube-state-metrics is publishing what you expect, forward its port (useful
 mainly for debugging — Prometheus already scrapes it in-cluster):
@@ -227,6 +233,23 @@ See [RCA/CrashLoop.md](RCA/CrashLoop.md) for details.
 
 ## Roadmap
 
+* **Enable the bundled kube-state-metrics and drop `make prom-kube-setup`.** The prometheus
+  subchart ships a `kube-state-metrics` subchart dependency that's `enabled: true` by
+  default, but the parent otel-demo chart currently disables it (see
+  `charts/prometheus` values key `kube-state-metrics.enabled: false` in the upstream chart).
+  Flipping it back on in `otel-new-values.yaml`:
+  ```yaml
+  prometheus:
+    kube-state-metrics:
+      enabled: true
+  ```
+  would let us remove the separate `helm install kube-state-metrics ...` step (the
+  `prom-kube-setup` Makefile target), keep everything in the `my-otel-demo` Helm release, and
+  avoid version skew between Prometheus and ksm. The scrape target in
+  `otel-new-values.yaml` would need to be updated from
+  `kube-state-metrics.kube-system.svc.cluster.local:8080` to the bundled ksm's in-namespace
+  service (likely `my-otel-demo-kube-state-metrics:8080` under the `default` namespace — exact
+  name to be confirmed by inspecting the rendered manifest after the flag flip).
 * **Capture the OOM memory bumps as code.** Add `components.<name>.resources.limits/requests`
   overrides for `ad`, `fraud-detection`, `prometheus-server`, and `kafka` to
   `otel-new-values.yaml` so a fresh install reproduces the same resource profile.

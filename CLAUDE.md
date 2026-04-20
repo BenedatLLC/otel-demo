@@ -37,11 +37,15 @@ and port-forward commands bind to `0.0.0.0`.
   / `helm get values` must use this name.
 - **kube-state-metrics is installed separately** in the `kube-system` namespace. The demo's
   built-in Prometheus only scrapes it after applying `otel-new-values.yaml` via
-  `helm upgrade -f otel-new-values.yaml`. That file's *only* real addition is a
-  `kube-state-metrics` scrape job; every other job in it is a verbatim copy of the chart's
-  defaults, because Helm **replaces** (not merges) the `scrape_configs` list. The
-  `CrashLoopBackOff` alert depends on this — without it,
-  `kube_pod_container_status_waiting_reason` is unavailable.
+  `helm upgrade -f otel-new-values.yaml`. The `CrashLoopBackOff` alert depends on this —
+  without it, `kube_pod_container_status_waiting_reason` is unavailable.
+- **The prometheus subchart concatenates scrape configs, it does not replace.** The ConfigMap
+  template (`charts/prometheus/templates/cm.yaml`) appends
+  `serverFiles."prometheus.yml".scrape_configs` (our override) to `prometheus.scrapeConfigs`
+  (chart defaults). So `otel-new-values.yaml` must contain *only* the new kube-state-metrics
+  job, not a copy of the defaults — otherwise you get duplicate job names (e.g. two
+  `prometheus` jobs) and Prometheus fails to start. This bit the project once already; see
+  the longer writeup in the README's "What `otel-new-values.yaml` contains and why".
 - **Memory tweaks are documented but not captured as code.** README "Configuration Changes"
   describes the bumps (`ad` 300→400Mi, `fraud-detection` 300→600Mi, `prometheus-server`
   300→500Mi, `kafka` 600→800Mi) but they are **not** in `otel-new-values.yaml` — they were
